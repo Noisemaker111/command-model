@@ -1,0 +1,515 @@
+<title>Shell Forensics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --ground:#F2F4F7; --surface:#FFFFFF; --surface-2:#E9EDF2; --line:#D5DBE4; --line-2:#C2CAD6;
+  --ink:#151A21; --ink-2:#4D5563; --ink-3:#77808F;
+  --accent:#0F6E73; --accent-ink:#0B5559; --accent-soft:#DCEFF0;
+  --good:#2E7D4F; --warn:#A56A00; --crit:#B3261E; --crit-soft:rgba(179,38,30,.12); --good-soft:rgba(46,125,79,.12);
+  --s1:#3A6EC0; --s2:#D07022; --s3:#3D9A63; --s4:#8A5CC7; --s5:#C24B7A; --s0:#9AA3B2;
+  --code-bg:#1B2028; --code-ink:#E6EAF0;
+  --display:"IBM Plex Sans Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono","Cascadia Mono",Consolas,"Courier New",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#161A20; --surface:#1E232B; --surface-2:#252B35; --line:#2F3743; --line-2:#3B4453;
+    --ink:#E8ECF1; --ink-2:#AEB6C2; --ink-3:#7E8794;
+    --accent:#4FC3C8; --accent-ink:#7FD8DC; --accent-soft:#173B3E;
+    --good:#4CAF74; --warn:#E0A343; --crit:#F26B62; --crit-soft:rgba(242,107,98,.16); --good-soft:rgba(76,175,116,.16);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#9085e9; --s5:#d55181; --s0:#6B7482;
+    --code-bg:#0F1318; --code-ink:#E6EAF0;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#161A20; --surface:#1E232B; --surface-2:#252B35; --line:#2F3743; --line-2:#3B4453;
+  --ink:#E8ECF1; --ink-2:#AEB6C2; --ink-3:#7E8794;
+  --accent:#4FC3C8; --accent-ink:#7FD8DC; --accent-soft:#173B3E;
+  --good:#4CAF74; --warn:#E0A343; --crit:#F26B62; --crit-soft:rgba(242,107,98,.16); --good-soft:rgba(76,175,116,.16);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#9085e9; --s5:#d55181; --s0:#6B7482;
+  --code-bg:#0F1318; --code-ink:#E6EAF0;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink)}
+h1,h2,h3,h4{font-family:var(--display);text-wrap:balance;margin:0}
+h1{font-size:clamp(36px,6vw,60px);font-weight:700;line-height:.95;letter-spacing:-.01em}
+h2{font-size:22px;font-weight:600;line-height:1.15}
+h3{font-size:16px;font-weight:600;line-height:1.2}
+p{margin:0}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.num{font-variant-numeric:tabular-nums}
+code,pre,.mono{font-family:var(--mono)}
+code{font-size:.92em;background:var(--surface-2);padding:1px 5px;border-radius:3px}
+.wrap{max-width:940px;margin:0 auto;padding:0 20px}
+main,section,figure{min-width:0;max-width:100%}
+
+/* masthead */
+.mast{padding:40px 0 22px}
+.mast .thesis{font-size:16px;color:var(--ink-2);margin-top:12px;max-width:64ch}
+.readout{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-top:22px}
+@media (max-width:760px){.readout{grid-template-columns:repeat(3,1fr)}}
+.readout div{background:var(--surface);padding:12px 12px 10px}
+.readout b{display:block;font-family:var(--display);font-size:26px;font-weight:600;line-height:1}
+.readout span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:5px;line-height:1.3}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 90%,transparent);backdrop-filter:blur(8px);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 2px}
+.nav li a{display:block;padding:9px 10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-2);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent}
+.nav li a:hover,.nav li a:focus-visible{color:var(--ink);border-bottom-color:var(--accent);outline:none}
+
+/* sections + cards */
+section{padding:34px 0 0}
+.sec-title{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.sec-title .n{font-family:var(--mono);color:var(--ink-3);font-size:12px}
+.sec-title p{color:var(--ink-2);font-size:14px;margin-left:auto;max-width:52ch;text-align:right}
+@media (max-width:760px){.sec-title{flex-wrap:wrap}.sec-title p{text-align:left;margin-left:0}}
+.card{background:var(--surface);border:1px solid var(--line);margin:0 0 18px;padding:0;position:relative}
+.card .top{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
+.card .top .id{color:var(--accent-ink);font-weight:500}
+.card .top .sp{margin-left:auto;text-transform:none;letter-spacing:0}
+.tweet{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;padding:14px 18px 12px;border-bottom:1px dashed var(--line-2);background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
+.tweet p{font-size:15.5px;line-height:1.45;color:var(--ink);white-space:pre-wrap;max-width:72ch}
+.tweet .ct{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:6px}
+.tweet .ct.over{color:var(--crit)}
+button.copy{font:inherit;font-family:var(--mono);font-size:11px;padding:6px 10px;background:var(--surface);border:1px solid var(--line-2);color:var(--ink-2);cursor:pointer;border-radius:3px;white-space:nowrap}
+button.copy:hover{border-color:var(--accent);color:var(--ink)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.body{padding:14px 18px 12px}
+.body .ft{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:10px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.body .ft b{color:var(--ink-2);font-weight:500}
+.fig-title{font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:8px}
+.scroll{overflow-x:auto;max-width:100%}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.two{grid-template-columns:minmax(0,1fr)}}
+.two>*{min-width:0}
+svg text{font-family:var(--body);fill:var(--ink-2);font-size:11.5px}
+svg .lbl{fill:var(--ink)}
+svg .dim{fill:var(--ink-3)}
+svg .mono{font-family:var(--mono)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--ink-2);margin:0 0 8px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* tables */
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right}
+tr:last-child td{border-bottom:none}
+.matrix td{padding:0}
+.matrix .cell{display:block;padding:5px 7px;min-width:56px;text-align:right}
+.matrix .cell small{display:block;color:var(--ink-3);font-size:10px}
+.matrix th.row{text-transform:none;font-family:var(--body);font-size:12.5px;color:var(--ink);font-weight:500;letter-spacing:0;white-space:nowrap}
+.chip{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:1px 6px;border:1px solid var(--line-2);border-radius:3px;color:var(--ink-2);margin:0 3px 3px 0;background:var(--surface);white-space:nowrap}
+.chip.ok{border-color:var(--good);color:var(--good)}
+.chip.fail{border-color:var(--crit);color:var(--crit)}
+.chip.hid{border-color:var(--warn);color:var(--warn)}
+.chip.v1{border-color:var(--s1);color:var(--s1)}.chip.v2{border-color:var(--s2);color:var(--s2)}.chip.v3{border-color:var(--s3);color:var(--s3)}.chip.v4{border-color:var(--s4);color:var(--s4)}.chip.v5{border-color:var(--s5);color:var(--s5)}
+.tag{display:inline-block;font-size:10.5px;padding:1px 5px;border-radius:3px;background:var(--surface-2);color:var(--ink-2);font-family:var(--mono)}
+
+/* code */
+pre.cmd{background:var(--code-bg);color:var(--code-ink);font-size:11.5px;line-height:1.45;padding:9px 12px;margin:0;overflow-x:auto;white-space:pre-wrap;word-break:break-word;border-left:3px solid var(--line-2)}
+pre.cmd.fail{border-left-color:var(--crit)} pre.cmd.ok{border-left-color:var(--good)} pre.cmd.hid{border-left-color:var(--warn)}
+pre.out{background:var(--surface-2);color:var(--ink-2);font-size:11px;line-height:1.4;padding:6px 12px;margin:0;overflow-x:auto;white-space:pre-wrap;word-break:break-word;border-left:3px solid var(--line)}
+pre.snip{background:var(--code-bg);color:var(--code-ink);font-size:11.5px;line-height:1.5;padding:10px 12px;margin:6px 0 0;overflow-x:auto;white-space:pre;border-left:3px solid var(--accent)}
+.ex{border:1px solid var(--line);background:var(--surface);margin-bottom:10px}
+.ex .meta{display:flex;flex-wrap:wrap;gap:3px 6px;align-items:center;padding:6px 10px 3px;font-size:11.5px;color:var(--ink-3)}
+.ex .meta b{color:var(--ink);font-weight:500}
+.exgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:820px){.exgrid{grid-template-columns:minmax(0,1fr)}}
+.exgrid>*{min-width:0}
+
+/* gallery */
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:10px}
+.filters label{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);display:block;margin-bottom:3px;letter-spacing:.04em;text-transform:uppercase}
+.filters select,.filters input{width:100%;font:inherit;font-size:12.5px;padding:5px 7px;background:var(--surface);color:var(--ink);border:1px solid var(--line-2);border-radius:3px}
+.gcount{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-bottom:8px}
+button.more{font:inherit;font-size:13px;padding:7px 12px;background:var(--surface);border:1px solid var(--line-2);color:var(--ink);cursor:pointer;border-radius:3px}
+
+/* rules */
+.rules{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+@media (max-width:900px){.rules{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.rules{grid-template-columns:1fr}}
+.rule{border:1px solid var(--line);padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:10px;background:var(--surface)}
+.rule .k{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:3px;height:fit-content;white-space:nowrap}
+.rule .k.do{background:var(--good-soft);color:var(--good)} .rule .k.dont{background:var(--crit-soft);color:var(--crit)}
+.rule h4{font-size:13.5px;margin-bottom:3px}
+.rule p{font-size:12px;color:var(--ink-2);line-height:1.4}
+.rule .ev{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:5px;line-height:1.4}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;font-size:13.5px;margin:0 0 14px;max-width:80ch}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:12.5px}
+.kv dt{color:var(--ink-3);font-family:var(--mono);font-size:11.5px;text-align:right}
+.kv dd{margin:0}
+ul.plain{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2)}
+ul.plain li+li{margin-top:4px}
+.thread .t{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line)}
+.thread .t:last-child{border-bottom:none}
+.thread .t .i{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding-top:3px}
+.thread .t p{font-size:14px;white-space:pre-wrap;line-height:1.45}
+.thread .t .ct{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:3px}
+.tip{position:fixed;pointer-events:none;z-index:50;background:var(--ink);color:var(--ground);font-size:11.5px;padding:6px 9px;border-radius:3px;max-width:320px;line-height:1.4;display:none;font-family:var(--mono)}
+footer{padding:28px 0 50px;color:var(--ink-3);font-size:12.5px;border-top:1px solid var(--line);margin-top:30px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:8px 14px;border-radius:4px;font-family:var(--mono);font-size:12px;display:none;z-index:60}
+</style>
+
+<div class="tip" id="tip"></div><div class="toast" id="toast">Copied</div>
+
+<header class="mast"><div class="wrap">
+  <div class="eyebrow" id="mast-eyebrow"></div>
+  <h1 style="margin-top:10px">Shell Forensics</h1>
+  <p class="thesis">Every shell command Codex, Claude Code, OpenCode and Cursor ran on this machine this summer, from their own logs. Each card below is sized to screenshot on its own and carries the post that goes with it.</p>
+  <div class="readout" id="readout"></div>
+</div></header>
+
+<nav class="nav"><div class="wrap"><ul>
+  <li><a href="#thread">Thread</a></li><li><a href="#s1">1 Where actions go</a></li><li><a href="#s2">2 Jobs</a></li><li><a href="#s3">3 Language vs host</a></li><li><a href="#s4">4 Programs in the shell</a></li><li><a href="#s5">5 Failures</a></li><li><a href="#s6">6 What fixed it</a></li><li><a href="#s7">7 Rules</a></li><li><a href="#s8">8 What to change</a></li><li><a href="#s9">9 Gallery</a></li><li><a href="#s10">10 Method</a></li>
+</ul></div></nav>
+
+<main class="wrap">
+
+<section id="thread">
+  <div class="sec-title"><span class="n">00</span><h2>The thread, in order</h2><p>Each post repeats above its card below. Copy one, or the whole thread.</p></div>
+  <div class="card"><div class="top"><span class="id">thread</span><span>14 posts</span><span class="sp"><button class="copy" id="copy-all">Copy whole thread</button></span></div><div class="body thread" id="thread-list"></div></div>
+</section>
+
+<section id="s1"><div class="sec-title"><span class="n">01</span><h2>Where the actions go</h2><p>Every tool call counted, not just shell ones.</p></div><div id="c-share"></div><div id="c-corpus"></div></section>
+<section id="s2"><div class="sec-title"><span class="n">02</span><h2>What the shell is asked to do</h2><p>Each command classified by its dominant verb.</p></div><div id="c-jobs"></div></section>
+<section id="s3"><div class="sec-title"><span class="n">03</span><h2>Which language they write, and where it runs</h2><p>The harness picks the host shell; the model picks the dialect it types.</p></div><div id="c-dialect"></div><div id="c-head"></div></section>
+<section id="s4"><div class="sec-title"><span class="n">04</span><h2>Programs inside the shell</h2><p>python -c, node -e, heredocs, here-strings, scratch scripts.</p></div><div id="c-embed"></div><div id="c-form"></div><div id="c-scratch"></div></section>
+<section id="s5"><div class="sec-title"><span class="n">05</span><h2>How it fails</h2><p>Classified from the output text.</p></div><div id="c-hidden"></div><div id="c-exit"></div><div id="c-causes"></div></section>
+<section id="s6"><div class="sec-title"><span class="n">06</span><h2>What fixed it</h2><p>The next shell command after each failure, and whether it worked.</p></div><div id="c-recovery"></div><div id="c-output"></div></section>
+<section id="s7"><div class="sec-title"><span class="n">07</span><h2>Rules the data supports</h2><p>Each names its evidence.</p></div><div id="c-rules"></div></section>
+<section id="s8"><div class="sec-title"><span class="n">08</span><h2>What to change</h2><p>Concrete edits to the files these agents already read.</p></div><div id="c-change"></div></section>
+<section id="s9"><div class="sec-title"><span class="n">09</span><h2>Command gallery</h2><p>Stratified sample; failures over-sampled on purpose.</p></div>
+  <div class="card"><div class="top"><span class="id">gallery</span><span id="gcount-top"></span></div><div class="body"><div class="filters" id="filters"></div><div class="gcount" id="gcount"></div><div id="gallery-list"></div><div style="margin-top:8px"><button class="more" id="more">Show more</button></div></div></div>
+</section>
+<section id="s10"><div class="sec-title"><span class="n">10</span><h2>Method and caveats</h2></div>
+  <div class="card"><div class="top"><span class="id">method</span></div><div class="body two">
+    <div><h3>Pipeline</h3><ul class="plain">
+      <li><b>Codex</b>: every <code>exec</code> custom tool call parsed as JavaScript; each <code>tools.exec_command</code> / <code>shell_command</code> inside is one record. Exit code from the <code>{"exit_code":n}</code> JSON the cell printed, when it printed it. Model from the turn context.</li>
+      <li><b>Claude Code</b>: <code>Bash</code> and <code>PowerShell</code> tool_use joined to tool_result by id; failure is <code>is_error</code> or an interrupted result.</li>
+      <li><b>OpenCode</b>: tool parts from v1 <code>part</code> and v2 <code>session_message</code>, de-duplicated by call id; <code>bash</code>, <code>shell</code>, <code>oc_bash</code>, <code>execute</code>.</li>
+      <li><b>Cursor</b>: <code>Shell</code> tool-calls joined to results; exit code parsed from text.</li>
+      <li>Dialect, job, embedding form, purpose and failure cause are regex classifiers over command and output text, hand-checked on samples. Expect a few percent noise per cell.</li></ul></div>
+    <div><h3>Caveats</h3><ul class="plain">
+      <li><b>Harness design dominates.</b> Codex cannot read a file except through a shell or a patch. Compare within a harness, across models.</li>
+      <li><b>Instructions leak in.</b> All Claude Fable 5.1 sessions carried an auto-mode instruction to prefer Bash. Repo AGENTS.md files push fan-out and specific commands.</li>
+      <li><b>Host shells differ per harness.</b> Claude's Bash tool is Git Bash; the others land in PowerShell or cmd.exe. Per-model failure rates are not comparable across harnesses.</li>
+      <li><b>Task mix differs.</b> Cursor and OpenCode sessions were heavier on builds and tests.</li>
+      <li><b>Hidden failures are a lower bound.</b> Only recognizable error strings count.</li>
+      <li><b>One user, one machine</b>, July 9 to September 6, 2026.</li></ul></div>
+  </div></div>
+</section>
+</main>
+<footer><div class="wrap">Built from local transcripts on <span id="gen"></span>. Pipeline: extract.py → analyze.py → scratch.py → build.py.</div></footer>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const $ = (s, el=document) => el.querySelector(s);
+const h = (tag, attrs={}, ...kids) => { const e = document.createElement(tag); for (const [k,v] of Object.entries(attrs)) { if (v==null) continue; if (k==='class') e.className=v; else if (k==='html') e.innerHTML=v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k,v);} for (const k of kids.flat()) { if (k==null) continue; e.append(k.nodeType?k:document.createTextNode(k)); } return e; };
+const pct = (x, d=1) => x==null ? '–' : (x*100).toFixed(d) + '%';
+const p0 = x => pct(x,0);
+const fmt = n => n==null ? '–' : Number(n).toLocaleString('en-US');
+const VCLS = {OpenAI:'v1', Anthropic:'v2', xAI:'v3', Meta:'v4', other:'v5'};
+const SRC = {codex:'--s1','claude-code':'--s2', opencode:'--s3', cursor:'--s4'};
+const famVendor = Object.fromEntries(D.families.map(f=>[f.fam,f.vendor]));
+const F = Object.fromEntries(D.families.map(x=>[x.fam,x]));
+const TS = Object.fromEntries(D.tool_share.map(t=>[t.fam,t]));
+const tip = $('#tip');
+function showTip(e, html){ tip.innerHTML = html; tip.style.display='block'; moveTip(e); }
+function moveTip(e){ const x = e.clientX+14, y = e.clientY+14; tip.style.left = Math.min(x, window.innerWidth-340)+'px'; tip.style.top = (y+80>window.innerHeight? y-70 : y)+'px'; }
+function hideTip(){ tip.style.display='none'; }
+function svgEl(n, a={}){ const e = document.createElementNS('http://www.w3.org/2000/svg', n); for (const [k,v] of Object.entries(a)) e.setAttribute(k, v); return e; }
+function text(x, y, s, cls='', extra={}){ const t = svgEl('text', {x, y, class:cls, ...extra}); t.textContent = s; return t; }
+function hover(el, html){ el.addEventListener('mouseenter', e=>showTip(e, html)); el.addEventListener('mousemove', moveTip); el.addEventListener('mouseleave', hideTip); }
+function copyText(s){ navigator.clipboard?.writeText(s).then(()=>{ const t=$('#toast'); t.style.display='block'; setTimeout(()=>t.style.display='none', 1200); }); }
+const T = D.totals, o = D.oddities, dh = D.dh, m = D.mismatch, det = Object.fromEntries(D.cause_detail), ik = Object.fromEntries(D.interp_kinds.map(k=>[k.kind,k]));
+const share = f => TS[f] ? TS[f].shell/TS[f].total : null;
+const rec = c => Object.fromEntries((D.recovery_by_cause[c]||[]).map(([k,n])=>[k,n]));
+const nf = rec('not-found'), pl = rec('permission/lock');
+const catShare = c => D.cat_totals[c] ? D.cat_totals[c].n/T.records : 0;
+
+/* ---------- the thread (data-driven; override any key via posts.json) ---------- */
+const fams = D.families.filter(f=>f.fam!=='Other models');
+const byShell = fams.map(f=>({f, s:share(f.fam)})).filter(x=>x.s!=null).sort((a,b)=>b.s-a.s);
+const codexFams = fams.filter(f=>f.sources.some(([s])=>s==='codex') && f.n>=1000).sort((a,b)=>(share(b.fam)||0)-(share(a.fam)||0));
+const instructedFam = fams.find(f=>f.instructed);
+const chosen = byShell.filter(x=>!x.f.instructed && !codexFams.includes(x.f))[0];
+const topFams = fams.slice(0,5).map(f=>f.fam).join(', ');
+const nOf = c => (D.causes.find(x=>x.cause===c)||{}).n||0;
+const ikp = k => ik[k] ? p0(ik[k].fr) : '–';
+const dhv = (d,h) => (D.dh[d]&&D.dh[d][h]&&D.dh[d][h].n>=30) ? D.dh[d][h].fr : null;
+const posixOnPS = ['powershell5','powershell','cmd.exe'].map(h=>dhv('posix',h)).filter(x=>x!=null);
+const posixOnBash = ['git-bash','bash','zsh'].map(h=>dhv('posix',h)).filter(x=>x!=null);
+const topInterp = fams.filter(f=>f.interp_share).sort((a,b)=>b.interp_share-a.interp_share).slice(0,3);
+const exitFams = D.exit_vis.filter(x=>x.visible+x.hidden>300).map(x=>({fam:x.fam, v:x.visible/(x.visible+x.hidden)})).sort((a,b)=>b.v-a.v);
+const TW = {
+  lead: `I pulled every shell command my coding agents ran on this machine: ${D.sources.map(s=>s.label.replace(/ \(.*\)/,'')).join(', ')}. Models: ${topFams}.\n\n${fmt(T.records)} commands, ${fmt(T.sessions)} sessions. What they do in the shell, how it fails, what fixed it. Thread:`,
+  share: `"Models do everything through bash" is true for 3 reasons.\n\n${codexFams.length?`Codex: by design. No read/edit tools; every action is a JS cell (${codexFams[0].fam} ${p0(share(codexFams[0].fam))} shell).\n`:''}${instructedFam?`${instructedFam.fam}: instructed. Auto mode says use Bash (${p0(share(instructedFam.fam))}).\n`:''}${chosen?`${chosen.f.fam}: chose the shell for ${p0(chosen.s)}, Read/Grep/Edit available.`:''}`,
+  corpus: `The corpus: ${fmt(T.records)} shell commands from ${fmt(T.sessions)} sessions and ${T.models} model IDs, ${T.first} to ${T.last}, read straight from each harness's own transcript store. ${p0(T.fail/T.records)} failed by the harness's own account. ${fmt(T.hidden)} more said OK and weren't.`,
+  jobs: `What the shell is used for: git ${p0(catShare('git'))}, reading files ${p0(catShare('read-file'))}, searching ${p0(catShare('search'))}, build/test ${p0(catShare('build/test/check'))}.\n\nReading and grepping through the shell instead of the dedicated Read/Grep tool is the biggest avoidable bucket, and every harness except Codex has those tools.`,
+  dialect: `The harness picks the host shell; the model picks the dialect it types.\n\nWhen they disagree the failure rate goes ${pct(m.ok_rate_when_matched.fail_rate,0)} → ${pct(m.fail.fail_rate,0)} (${fmt(m.n)} commands).${posixOnPS.length?` POSIX typed into a Windows shell: up to ${p0(Math.max(...posixOnPS))}.`:''}${posixOnBash.length?` The same POSIX in a real bash: ${pct(Math.min(...posixOnBash))}.`:''}`,
+  head: `The most common concrete failure: a program that wasn't there. Top names from the error text: ${D.cause_detail.slice(0,4).map(([k,n])=>k.replace(/^.*: /,'')+' '+n).join(', ')}.\n\n${det['unix tool in Windows shell: head']?`"| head" typed into PowerShell alone: ${det['unix tool in Windows shell: head']} times. Not a knowledge gap. It's a reflex.`:'Mostly tools from the other operating system\'s shell, or a package that was never installed.'}`,
+  embed: `${p0(T.with_interp/T.records)} of shell calls are really a program in disguise: python -c, node -e, bun -e, a heredoc, a nested pwsh -Command.\n\n${topInterp.map(f=>`${f.fam}: ${p0(f.interp_share)}`).join('. ')}.\n\nAnd the embedded form fails more than a plain command for almost every model.`,
+  form: `How you embed matters more than which language.\n\npython -c one-liner: ${ikp('python -c')} fail\nsame python via heredoc/stdin: ${ikp('python heredoc/stdin')}\nnode -e: ${ikp('node -e/-p')} · node via stdin: ${ikp('node stdin/heredoc')}\nPowerShell here-string: ${ikp('PS here-string')}\njq: ${ikp('jq')} · awk/perl one-liners: ${ikp('perl/awk one-liner')}\n\nQuoting a program through two shells is the killer.`,
+  scratch: `Some models write scratch .ts/.py files to a temp dir and run them once; others write files through here-strings and heredocs inside the shell call.\n\nSame job, different failure surface. The table shows who does which.`,
+  hidden: `${fmt(T.hidden)} commands the harness marked OK that contained a hard error ("not recognized", Traceback, syntax error).\n\nWhy: "a; b; c" returns the LAST exit code.${o.and_and_on_ps5?` && is a parse error in Windows PowerShell 5.1, so models fall back to ; and lose the early stop. ${o.and_and_on_ps5} && attempts on PS 5.1.`:''}`,
+  exit: exitFams.length ? `Codex: inside the JS cell the model decides what to print.\n\ntext(r) shows exit code + wall time.\ntext(r.output) shows only stdout.\n\n${exitFams.slice(0,3).map((x,i)=>i?`${x.fam}: ${p0(x.v)}`:`${x.fam} prints the full result ${p0(x.v)} of the time`).join('. ')}. A failed command looks like an empty success.` : 'No Codex sessions in this corpus.',
+  causes: `Failure causes, all harnesses: most are the tool working on broken code (build/test) or a plain non-zero exit. The shell itself breaking: not-found ${nOf('not-found')}, permission/lock ${nOf('permission/lock')}, JS errors ${nOf('js-error')}, path not found ${nOf('path-not-found')}, PowerShell syntax ${nOf('powershell-syntax')}.`,
+  recovery: `What fixed it, by looking at the very next command:\n\nAfter "not found": switching dialect worked ${(nf['switched dialect posix->neutral | then ok']||0)+(nf['switched dialect posix->powershell | then ok']||0)+(nf['switched dialect powershell->neutral | then ok']||0)}×. Rewording in the same dialect: ${nf['rewrote same dialect | then ok']||0} ok / ${nf['rewrote same dialect | still failing']||0} fail.\n\nAfter lock/permission: retrying verbatim worked ${pl['identical retry | then ok']||0}×. Rewording: ${pl['rewrote same dialect | then ok']||0} ok / ${pl['rewrote same dialect | still failing']||0} fail.`,
+  output: `${D.output.measured?pct(D.output.n_over_10k/D.output.measured,0):'–'} of measured outputs were over 10k characters. ${fmt(D.output.n_over_30k)} over 30k. Whole files and logs dumped into context because nobody asked for a slice.`,
+  rules: `Rules the data backs:\n· write the host's dialect\n· no | head / cat / 2>/dev/null on PowerShell\n· after "not found", switch dialect\n· never trust exit 0 from a ; chain\n· Codex: print text(r), not r.output\n· heredoc/stdin over python -c\n· cap output\n· retry locks verbatim`,
+  change: `What I'm changing: point every harness at a real POSIX shell where its config allows, a dialect note in AGENTS.md / CLAUDE.md, and a pre-tool hook for the reflexes that survive instructions.\n\nEvery chart${D.gallery.length?` + a gallery of ${fmt(D.gallery.length)} real commands`:''}: [link]`,
+};
+if (D.posts) for (const [k,v] of Object.entries(D.posts)) if (typeof v === 'string') TW[k] = v;
+const ORDER = ['lead','share','corpus','jobs','dialect','head','embed','form','scratch','hidden','exit','causes','recovery','output','rules','change'];
+{
+  const box = $('#thread-list');
+  ORDER.forEach((k,i)=>{ const s = TW[k]; box.append(h('div',{class:'t'}, h('span',{class:'i'}, `${i+1}/${ORDER.length}`), h('div',{}, h('p',{}, s), h('div',{class:'ct'+(s.length>280?' over':'')}, `${s.length} chars${s.length>280?' · over 280, trim or split':''}`)), h('button',{class:'copy', onclick:()=>copyText(s)}, 'Copy'))); });
+  $('#copy-all').addEventListener('click', ()=>copyText(ORDER.map((k,i)=>`${i+1}/ ${TW[k]}`).join('\n\n')));
+  $('.card .top span:nth-child(2)').textContent = `${ORDER.length} posts`;
+}
+
+/* ---------- card factory ---------- */
+let CARD = 0;
+function card(mount, id, tweetKey, bodyEl, foot){ CARD++; const s = TW[tweetKey];
+  const c = h('div',{class:'card', id:'card-'+id},
+    h('div',{class:'top'}, h('span',{class:'id'}, `card ${String(CARD).padStart(2,'0')}`), h('span',{}, 'Shell Forensics'), h('span',{class:'sp'}, `${T.first} → ${T.last} · local transcripts · n=${fmt(T.records)}`)),
+    h('div',{class:'tweet'}, h('div',{}, h('p',{}, s), h('div',{class:'ct'+(s.length>280?' over':'')}, `${s.length} chars`)), h('button',{class:'copy', onclick:()=>copyText(s)}, 'Copy post')),
+    h('div',{class:'body'}, bodyEl, foot? h('div',{class:'ft'}, h('span',{html:foot}), h('span',{}, 'shell forensics · one machine, four harnesses')) : null));
+  $(mount).append(c); return c; }
+
+/* ---------- masthead ---------- */
+$('#mast-eyebrow').textContent = `Tool-call transcripts · ${T.first} to ${T.last} · one Windows 11 workstation`;
+$('#gen').textContent = D.generated.replace('T',' ');
+$('#readout').append(
+  h('div',{}, h('b',{class:'num'}, fmt(T.records)), h('span',{}, 'shell commands')),
+  h('div',{}, h('b',{class:'num'}, fmt(T.sessions)), h('span',{}, `sessions · ${T.models} model IDs`)),
+  h('div',{}, h('b',{class:'num'}, pct(T.fail/T.records)), h('span',{}, 'failed, per the harness')),
+  h('div',{}, h('b',{class:'num'}, fmt(T.hidden)), h('span',{}, 'said OK, carried an error')),
+  h('div',{}, h('b',{class:'num'}, pct(T.with_interp/T.records)), h('span',{}, 'carried an embedded program')),
+  h('div',{}, h('b',{class:'num'}, fmt(T.js_cell)), h('span',{}, 'went through a JS cell first')),
+);
+
+/* ---------- 01 share ---------- */
+{
+  const keys = ['shell','read/search','edit/write','js/node repl','agents/quest','other'];
+  const col = {shell:'--s1','read/search':'--s3','edit/write':'--s2','js/node repl':'--s4','agents/quest':'--s5', other:'--s0'};
+  const rows = D.tool_share.filter(r=>r.total>=500); const W = 880, RH = 24, L = 150, H = rows.length*RH + 6;
+  const svg = svgEl('svg', {viewBox:`0 0 ${W} ${H}`, width:'100%', style:'display:block;max-width:880px'});
+  rows.forEach((r,i)=>{ const y = i*RH+3; let x = L; const total = r.total; const inst = F[r.fam]?.instructed;
+    svg.append(text(L-8, y+15, r.fam + (inst?' ⚑':''), 'lbl', {'text-anchor':'end','font-size':'12', 'font-weight':'500'}));
+    for (const k of keys){ const v = r[k]||0; if(!v) continue; const w = (W-L-60)*v/total; const rect = svgEl('rect',{x, y:y+3, width:Math.max(w-2,1), height:RH-8, fill:`var(${col[k]})`}); hover(rect, `<b>${r.fam}</b> · ${k}<br>${fmt(v)} of ${fmt(total)} calls (${pct(v/total)})${inst&&k==='shell'?'<br>⚑ instructed to use Bash':''}`); svg.append(rect); if (k==='shell' && w>36) svg.append(text(x+6, y+16, p0(v/total), 'mono', {fill:'#fff','font-size':'11','font-weight':'500'})); x += w; }
+    svg.append(text(W-56, y+16, fmt(total), 'dim mono num', {'font-size':'11'})); });
+  const body = h('div',{}, h('div',{class:'fig-title'}, 'Every tool call, split by what kind of tool it was'), h('div',{class:'legend'}, ...keys.map(k=>h('span',{}, h('i',{style:`background:var(${col[k]})`}), k)), h('span',{}, '⚑ instructed to use Bash (auto mode)')), svg);
+  card('#c-share','share','share', body, `Codex has no read/grep/edit tool; every action is a JS cell. Top shell shares: ${byShell.slice(0,4).map(x=>`<b>${x.f.fam} ${p0(x.s)}</b>${x.f.instructed?' (instructed)':''}`).join(' · ')}`);
+  /* corpus */
+  const t = h('table');
+  t.append(h('thead',{}, h('tr',{}, ...['Harness','Shell tool','Host shell','Records','Sessions','Fail','Hidden','Models'].map((s,i)=>h('th',{class:i>=3&&i<=6?'num':''}, s)))));
+  const tb = h('tbody');
+  for (const s of D.sources) tb.append(h('tr',{}, h('td',{}, h('span',{class:'chip', style:`border-color:var(${SRC[s.key]});color:var(${SRC[s.key]})`}, s.label)), h('td',{class:'mono', style:'font-size:11px'}, s.tool), h('td',{style:'font-size:12px'}, s.host), h('td',{class:'num'}, fmt(s.n)), h('td',{class:'num'}, fmt(s.sessions)), h('td',{class:'num'}, pct(s.fr)), h('td',{class:'num'}, pct(s.hr)), h('td',{style:'font-size:11px;color:var(--ink-2)'}, s.families.slice(0,4).map(([f,n])=>`${f} ${fmt(n)}`).join(' · '))));
+  t.append(tb);
+  card('#c-corpus','corpus','corpus', h('div',{class:'scroll'}, t), `Codex ~/.codex/sessions · Claude ~/.claude/projects · OpenCode opencode.db · Cursor ~/.cursor/chats`);
+}
+
+/* ---------- 02 jobs ---------- */
+{
+  const cats = ['git','read-file','search','build/test/check','list/navigate','github (gh)','write-file','run/dev/daemon','data/json wrangling','process-mgmt'];
+  const fams = D.families.filter(f=>f.n>=400 && f.fam!=='Other models');
+  const t = h('table',{class:'matrix'});
+  t.append(h('thead',{}, h('tr',{}, h('th',{}, ''), ...cats.map(c=>h('th',{class:'num'}, c.replace(' (gh)','').replace('/check','').replace('/daemon',''))), h('th',{class:'num'}, 'calls'))));
+  const tb = h('tbody');
+  for (const f of fams){ const row = D.cat_matrix[f.fam]; const tr = h('tr',{}, h('th',{class:'row'}, f.fam));
+    for (const c of cats){ const r = row[c]; const s = r.n/f.n; const cell = h('span',{class:'cell num', style:`background:color-mix(in srgb, var(--accent) ${Math.round(Math.min(s,0.4)/0.4*70)}%, transparent)`}, s>0.005?p0(s):'·', h('small',{}, r.n>=20?'fail '+p0(r.fr):'')); hover(cell, `<b>${f.fam}</b> · ${c}<br>${fmt(r.n)} calls (${pct(s)}) · ${r.fail} failed · ${r.hidden} hidden`); tr.append(h('td',{}, cell)); }
+    tr.append(h('td',{class:'num', style:'padding:5px 7px;color:var(--ink-3)'}, fmt(f.n))); tb.append(tr); }
+  const tr = h('tr',{}, h('th',{class:'row'}, 'all')); for (const c of cats){ const r = D.cat_totals[c]; tr.append(h('td',{}, h('span',{class:'cell num', style:'border-top:1px solid var(--line-2)'}, p0(r.n/T.records), h('small',{}, 'fail '+p0(r.fr))))); } tr.append(h('td',{class:'num',style:'padding:5px 7px;color:var(--ink-3);border-top:1px solid var(--line-2)'}, fmt(T.records))); tb.append(tr); t.append(tb);
+  card('#c-jobs','jobs','jobs', h('div',{}, h('div',{class:'fig-title'}, 'Share of each model’s shell calls by job (shade = share, small = fail rate in that cell)'), h('div',{class:'scroll'}, t)), `Omitted: js-only cells (${fmt(D.cat_totals['js-only'].n)}), other/unclassified (${fmt(D.cat_totals.other.n)}), and jobs under ${fmt(D.cat_totals['env/diagnostics'].n)} calls`);
+}
+
+/* ---------- 03 dialect ---------- */
+{
+  const hosts = D.hosts, dial = D.dialects.filter(d=>d!=='js-only');
+  const t = h('table',{class:'matrix'});
+  t.append(h('thead',{}, h('tr',{}, h('th',{}, 'written ↓ · ran in →'), ...hosts.map(c=>h('th',{class:'num'}, c)), h('th',{class:'num'}, 'all'))));
+  const tb = h('tbody');
+  for (const d of dial){ const tr = h('tr',{}, h('th',{class:'row'}, d));
+    for (const hst of hosts){ const r = dh[d][hst]; if (r.n < 30){ tr.append(h('td',{}, h('span',{class:'cell', style:'color:var(--ink-3)'}, r.n?`n=${r.n}`:'·'))); continue; }
+      const cell = h('span',{class:'cell num', style:`background:color-mix(in srgb, var(--crit) ${Math.round(Math.min(r.fr,0.45)/0.45*75)}%, transparent)`}, p0(r.fr), h('small',{}, fmt(r.n))); hover(cell, `<b>${d}</b> written, ran in <b>${hst}</b><br>${fmt(r.n)} calls · ${r.fail} failed (${pct(r.fr)}) · ${r.hidden} hidden`); tr.append(h('td',{}, cell)); }
+    const a = D.by_dialect[d]; tr.append(h('td',{}, h('span',{class:'cell num', style:'border-left:1px solid var(--line-2)'}, p0(a.fr), h('small',{}, fmt(a.n))))); tb.append(tr); }
+  t.append(tb);
+  /* dialect by family */
+  const col = {posix:'--s3', powershell:'--s1', cmd:'--s4', neutral:'--s0', mixed:'--s2', 'js-only':'--s5'};
+  const fams = D.families.filter(f=>f.n>=400 && f.fam!=='Other models'); const W=420, RH=20, L=118, H=fams.length*RH+4;
+  const svg = svgEl('svg',{viewBox:`0 0 ${W} ${H}`, width:'100%', style:'display:block;max-width:420px'});
+  fams.forEach((f,i)=>{ const y=i*RH+2; const dd = D.dialect_by_family[f.fam]; const tot = Object.values(dd).reduce((a,b)=>a+b,0); let x=L; svg.append(text(L-6,y+14,f.fam,'lbl',{'text-anchor':'end','font-size':'11'}));
+    for (const k of D.dialects){ const v=dd[k]||0; if(!v) continue; const w=(W-L-4)*v/tot; const rect=svgEl('rect',{x,y:y+3,width:Math.max(w-1,1),height:RH-7,fill:`var(${col[k]})`}); hover(rect, `<b>${f.fam}</b> · ${k}<br>${fmt(v)} of ${fmt(tot)} (${pct(v/tot)})`); svg.append(rect); x+=w; } });
+  const body = h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Failure rate: dialect written × host shell (small = count)'), h('div',{class:'scroll'}, t)), h('div',{}, h('div',{class:'fig-title'}, 'Dialect each model reaches for'), h('div',{class:'legend'}, ...D.dialects.map(k=>h('span',{}, h('i',{style:`background:var(${col[k]})`}), k))), svg));
+  card('#c-dialect','dialect','dialect', body, `mismatch: <b>${fmt(m.n)}</b> commands, ${pct(m.fail.fail_rate)} fail vs ${pct(m.ok_rate_when_matched.fail_rate)} matched · neutral = valid in any shell · mixed = cmdlets and Unix tools in one line`);
+  /* head card */
+  const items = [['“| head” typed into a PowerShell host', o.head_in_ps], ['“cat” typed into PowerShell or cmd.exe', o.cat_in_ps], ['2>/dev/null in PowerShell or cmd.exe', o.dev_null_in_powershell], ['&& on Windows PowerShell 5.1 (parse error)', o.and_and_on_ps5]];
+  const dt = h('table'); dt.append(h('thead',{}, h('tr',{}, h('th',{}, 'Name that was not found'), h('th',{class:'num'}, 'Count'))));
+  const dtb = h('tbody'); for (const [k,n] of D.cause_detail.slice(0,10)) dtb.append(h('tr',{}, h('td',{class:'mono', style:'font-size:11.5px'}, k), h('td',{class:'num'}, fmt(n)))); dt.append(dtb);
+  const kv = h('dl',{class:'kv'}); for (const [k,v] of items) kv.append(h('dt',{}, fmt(v)), h('dd',{}, k));
+  card('#c-head','head','head', h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Top “not found” names, from the error text'), dt), h('div',{}, h('div',{class:'fig-title'}, 'Habits that belong to the other shell'), kv)), `extracted from “is not recognized as the name of a cmdlet” / “command not found” messages`);
+}
+
+/* ---------- 04 embedded ---------- */
+{
+  const fams = D.families.filter(f=>f.interp_share && f.n>=600 && f.fam!=='Other models');
+  const t = h('table'); t.append(h('thead',{}, h('tr',{}, ...['Model','Shell calls','Embeds a program','Fail with','Fail without','Favourite forms'].map((s,i)=>h('th',{class:i>=1&&i<=4?'num':''}, s)))));
+  const tb = h('tbody');
+  for (const f of fams) tb.append(h('tr',{}, h('td',{}, h('span',{class:'chip '+VCLS[f.vendor]}, f.fam)), h('td',{class:'num'}, fmt(f.n)), h('td',{class:'num'}, p0(f.interp_share)), h('td',{class:'num', style: f.fail_with_interp>f.fail_without?'color:var(--crit)':''}, pct(f.fail_with_interp)), h('td',{class:'num'}, pct(f.fail_without)), h('td',{}, f.interp_kinds.slice(0,3).map(([k,n])=>h('span',{class:'chip'}, `${k} ${n}`)))));
+  t.append(tb);
+  card('#c-embed','embed','embed', h('div',{}, h('div',{class:'fig-title'}, 'How often each model embeds a program in a shell call, and what it costs'), h('div',{class:'scroll'}, t)), `“with” / “without” = failure rate of shell calls that do / do not carry python, node, bun, jq, a heredoc or a nested pwsh`);
+  /* form */
+  const rows = D.interp_kinds.slice().sort((a,b)=>b.fr-a.fr); const W=520, RH=20, L=170, H=rows.length*RH+24; const maxv=Math.max(...rows.map(r=>r.fr)); const base=D.no_interp.fr; const xs=v=>L+(W-L-80)*v/maxv;
+  const svg = svgEl('svg',{viewBox:`0 0 ${W} ${H}`, width:'100%', style:'display:block;max-width:520px'});
+  rows.forEach((r,i)=>{ const y=i*RH+2; svg.append(text(L-6,y+14,r.kind,'lbl',{'text-anchor':'end','font-size':'11'})); const rect=svgEl('rect',{x:L,y:y+4,width:Math.max(xs(r.fr)-L,1),height:RH-8,fill:'var(--crit)',opacity:r.n<100?0.5:0.9}); hover(rect, `<b>${r.kind}</b><br>${fmt(r.n)} calls · ${r.fail} failed (${pct(r.fr)})<br>median ${fmt(r.median_len)} chars<br>${r.fams.map(([f,n])=>f+' '+n).join(' · ')}`); svg.append(rect); svg.append(text(xs(r.fr)+5,y+14,`${p0(r.fr)} · n=${fmt(r.n)}`,'mono dim',{'font-size':'10.5'})); });
+  svg.append(svgEl('line',{x1:xs(base),x2:xs(base),y1:0,y2:rows.length*RH+4,stroke:'var(--ink-2)','stroke-dasharray':'3 3'})); svg.append(text(xs(base)+4,rows.length*RH+18,`plain command: ${pct(base)}`,'dim mono',{'font-size':'10.5'}));
+  const P = D.purpose_global.map(x=>x[0]).slice(0,7); const pt = h('table'); pt.append(h('thead',{}, h('tr',{}, h('th',{}, 'purpose'), h('th',{class:'num'}, 'programs')))); const ptb=h('tbody'); for (const [p,n] of D.purpose_global.slice(0,9)) ptb.append(h('tr',{}, h('td',{}, p), h('td',{class:'num'}, fmt(n)))); pt.append(ptb);
+  card('#c-form','form','form', h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Failure rate by embedding form'), svg), h('div',{}, h('div',{class:'fig-title'}, 'What the embedded programs do'), pt)), `faded bars have under 100 calls · a program can serve several purposes`);
+  /* scratch */
+  const agg={}; if (D.scratch.length) { for (const r of D.scratch){ const k=r.family; agg[k]=agg[k]||{fam:k,total:0,temp:0,ext:{}}; agg[k].total+=r.n; if(r.where==='temp/scratch') agg[k].temp+=r.n; agg[k].ext[r.ext]=(agg[k].ext[r.ext]||0)+r.n; }
+  const st = h('table'); st.append(h('thead',{}, h('tr',{}, ...['Model','Scripts written','In temp/scratch','By extension'].map((s,i)=>h('th',{class:i==1||i==2?'num':''}, s)))));
+  const stb=h('tbody'); for (const a of Object.values(agg).sort((x,y)=>y.total-x.total).slice(0,10)) stb.append(h('tr',{}, h('td',{}, a.fam), h('td',{class:'num'}, fmt(a.total)), h('td',{class:'num'}, `${fmt(a.temp)} (${p0(a.temp/a.total)})`), h('td',{}, Object.entries(a.ext).sort((x,y)=>y[1]-x[1]).map(([e,n])=>h('span',{class:'chip'}, `.${e} ${n}`))))); st.append(stb);
+  const G = D.gallery; const pyx = G.find(g=>g.i==='python heredoc/stdin' && g.f.startsWith('GPT-6')) || G.find(g=>g.i==='python heredoc/stdin'); const psx = G.find(g=>g.i==='PS here-string' && g.cmd.length>80 && g.cmd.length<260) || G.find(g=>g.i==='PS here-string' && g.cmd.length>80);
+  card('#c-scratch','scratch','scratch', h('div',{}, h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Files written through a Write/patch tool, by extension'), h('div',{class:'scroll'}, st)), h('div',{}, h('div',{class:'fig-title'}, 'Codex writing a file without a Write tool'), (psx||pyx)?exCard(psx||pyx):null))), `.ts/.tsx in repo are real source files; the temp share is the scratch-script habit`); }
+}
+function exCard(g, label){ const st = g.ok===false?'fail':g.hid?'hid':'ok';
+  return h('div',{class:'ex'}, h('div',{class:'meta'}, h('b',{}, g.f), h('span',{class:'chip '+st}, st==='fail'?'failed':st==='hid'?'hidden failure':'ok'), h('span',{class:'tag'}, g.h), h('span',{class:'tag'}, g.d), h('span',{class:'tag'}, g.c), g.i?h('span',{class:'tag'}, g.i):null, g.cause?h('span',{class:'tag', style:'color:var(--crit)'}, g.cause + (g.det?' · '+g.det:'')):null, label?h('span',{style:'color:var(--ink-3)'}, label):null, h('span',{style:'margin-left:auto;font-family:var(--mono)'}, g.w)),
+    h('pre',{class:'cmd '+st}, g.cmd.slice(0,420) + (g.cmd.length>420?' …':'')), g.out? h('pre',{class:'out'}, g.out.slice(0,220) + (g.out.length>220?' …':'')) : null); }
+
+/* ---------- 05 failures ---------- */
+{
+  const RH=20, L=150;
+  const hf = D.families.filter(f=>f.n>=400&&f.fam!=='Other models').map(f=>({fam:f.fam, ...D.hidden_by_fam[f.fam]})).sort((a,b)=>b.hr-a.hr); const W2=520, H2=hf.length*RH+4; const mx=Math.max(...hf.map(x=>x.hr));
+  const s2 = svgEl('svg',{viewBox:`0 0 ${W2} ${H2}`, width:'100%', style:'display:block;max-width:520px'});
+  hf.forEach((r,i)=>{ const y=i*RH+2; const w=(W2-L-90)*r.hr/mx; s2.append(text(L-6,y+14,r.fam,'lbl',{'text-anchor':'end','font-size':'11'})); const rect=svgEl('rect',{x:L,y:y+4,width:Math.max(w,1),height:RH-8,fill:'var(--warn)'}); hover(rect, `<b>${r.fam}</b><br>${r.hidden} hidden of ${fmt(r.n)} (${pct(r.hr)})`); s2.append(rect); s2.append(text(L+w+5,y+14,`${pct(r.hr)} · ${r.hidden}`,'mono dim',{'font-size':'10.5'})); });
+  const hidEx = D.gallery.filter(g=>g.hid && g.cmd.length<260).slice(0,1);
+  card('#c-hidden','hidden','hidden', h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Hidden failures: harness said OK, output said otherwise'), s2), h('div',{}, h('div',{class:'fig-title'}, 'One of them'), ...hidEx.map(g=>exCard(g)))), `hidden = exit 0 / no error flag, but output contains “not recognized”, “command not found”, Traceback, syntax error, path not found or access denied`);
+  const ev = D.exit_vis.filter(x=>x.visible+x.hidden>300); const H3=ev.length*RH+4; if (ev.length) { const s3=svgEl('svg',{viewBox:`0 0 ${W2} ${H3}`, width:'100%', style:'display:block;max-width:520px'});
+  ev.forEach((r,i)=>{ const y=i*RH+2; const tot=r.visible+r.hidden; const wv=(W2-L-70)*r.visible/tot, wh=(W2-L-70)*r.hidden/tot; s3.append(text(L-6,y+14,r.fam,'lbl',{'text-anchor':'end','font-size':'11'})); const a=svgEl('rect',{x:L,y:y+4,width:Math.max(wv-1,0.5),height:RH-8,fill:'var(--good)'}); const b=svgEl('rect',{x:L+wv,y:y+4,width:Math.max(wh-1,0.5),height:RH-8,fill:'var(--s0)'}); hover(a, `<b>${r.fam}</b> printed the exit code<br>${fmt(r.visible)} of ${fmt(tot)} (${pct(r.visible/tot)})`); hover(b, `<b>${r.fam}</b> printed r.output only<br>${fmt(r.hidden)} of ${fmt(tot)} (${pct(r.hidden/tot)})`); s3.append(a,b); s3.append(text(W2-66,y+14,p0(r.visible/tot)+' seen','mono dim',{'font-size':'10.5'})); });
+  const snip = h('pre',{class:'snip'}, `// what the model wrote, two ways\nconst r = await tools.exec_command({cmd:"bun run check-types", workdir});\ntext(r.output);   // stdout only — exit code gone\ntext(r);          // {"exit_code":1,"wall_time_seconds":4.2,"output":"…"}`);
+  card('#c-exit','exit','exit', h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Codex: did the model print the exit code?'), h('div',{class:'legend'}, h('span',{}, h('i',{style:'background:var(--good)'}), 'text(r): exit code visible'), h('span',{}, h('i',{style:'background:var(--s0)'}), 'text(r.output): hidden')), s3), h('div',{}, h('div',{class:'fig-title'}, 'The one-token difference'), snip)), `${fmt(o.r_output_only_hides_exit)} results printed without an exit code across all Codex models`); }
+  const rows = D.causes; const W=520, H=rows.length*RH+4; const maxv=rows[0].n; const svg=svgEl('svg',{viewBox:`0 0 ${W} ${H}`, width:'100%', style:'display:block;max-width:520px'});
+  rows.forEach((r,i)=>{ const y=i*RH+2; const w=(W-L-60)*r.n/maxv; svg.append(text(L-6,y+14,r.cause,'lbl',{'text-anchor':'end','font-size':'11'})); const rect=svgEl('rect',{x:L,y:y+4,width:Math.max(w,1),height:RH-8,fill:(r.cause==='build/test failure'||r.cause==='nonzero/other')?'var(--s0)':'var(--crit)'}); hover(rect, `<b>${r.cause}</b> · ${fmt(r.n)}<br>${r.fams.map(([f,n])=>f+' '+n).join('<br>')}`); svg.append(rect); svg.append(text(L+w+5,y+14,fmt(r.n),'mono dim',{'font-size':'10.5'})); });
+  const cf = h('table'); cf.append(h('thead',{}, h('tr',{}, h('th',{}, 'Model'), h('th',{}, 'Top causes')))); const cfb=h('tbody'); for (const f of D.families.filter(f=>f.n>=400&&f.fam!=='Other models')) cfb.append(h('tr',{}, h('td',{style:'white-space:nowrap'}, f.fam), h('td',{}, (D.cause_by_fam[f.fam]||[]).slice(0,4).map(([c,n])=>h('span',{class:'chip'}, `${c} ${n}`))))); cf.append(cfb);
+  card('#c-causes','causes','causes', h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Failure causes, all harnesses'), h('div',{class:'legend'}, h('span',{}, h('i',{style:'background:var(--crit)'}), 'the shell call itself broke'), h('span',{}, h('i',{style:'background:var(--s0)'}), 'the tool ran; the code or command failed')), svg), h('div',{}, h('div',{class:'fig-title'}, 'By model'), cf)), `causes are regex matches on output text, first match wins`);
+}
+
+/* ---------- 06 recovery ---------- */
+{
+  const RB = D.recovery_by_cause; const causes = ['not-found','permission/lock','powershell-syntax','path-not-found','js-error'].filter(c=>RB[c]);
+  const t = h('table'); t.append(h('thead',{}, h('tr',{}, h('th',{}, 'After this failure'), h('th',{}, 'the next shell command was'), h('th',{class:'num'}, 'then ok'), h('th',{class:'num'}, 'still failing'))));
+  const tb = h('tbody');
+  for (const c of causes){ const moves={}; for (const [k,n] of RB[c]){ const [kind,out]=k.split(' | '); moves[kind]=moves[kind]||{ok:0,bad:0,n:0}; if(out==='then ok') moves[kind].ok+=n; else if(out==='still failing') moves[kind].bad+=n; else moves[kind].n=n; }
+    const list=Object.entries(moves).sort((a,b)=>(b[1].ok+b[1].bad+b[1].n)-(a[1].ok+a[1].bad+a[1].n)).slice(0,3);
+    list.forEach(([kind,v],i)=>tb.append(h('tr',{}, i===0?h('td',{rowspan:list.length, style:'font-weight:500;white-space:nowrap'}, c):null, h('td',{class:'mono', style:'font-size:11.5px'}, kind==='abandon/other-tool'?`left the shell (${v.n})`:kind), h('td',{class:'num', style:'color:var(--good)'}, v.ok||'·'), h('td',{class:'num', style:'color:var(--crit)'}, v.bad||'·')))); }
+  t.append(tb);
+  const ex = D.retry_examples.find(r=>r.cause==='not-found' && r.outcome==='then ok');
+  const exEl = ex ? h('div',{class:'ex'}, h('div',{class:'meta'}, h('b',{}, ex.family), h('span',{class:'tag', style:'color:var(--crit)'}, ex.cause+(ex.detail?' · '+ex.detail:'')), h('span',{class:'tag'}, ex.kind), h('span',{class:'chip ok'}, ex.outcome)), h('pre',{class:'cmd fail'}, ex.first.slice(0,300)), ex.first_out?h('pre',{class:'out'}, ex.first_out.slice(0,200)):null, h('div',{class:'meta'}, '↓ next command'), h('pre',{class:'cmd ok'}, ex.second.slice(0,300))) : null;
+  card('#c-recovery','recovery','recovery', h('div',{class:'two'}, h('div',{}, h('div',{class:'fig-title'}, 'Next move after a failure, by cause'), h('div',{class:'scroll'}, t)), h('div',{}, h('div',{class:'fig-title'}, 'A typical fix'), exEl)), `${fmt(D.identical_retries)} identical retries in the corpus · “rewrote same dialect” = different text, same shell language`);
+  const ob = h('table'); ob.append(h('thead',{}, h('tr',{}, h('th',{}, 'Model'), h('th',{class:'num'}, 'outputs measured'), h('th',{class:'num'}, 'over 10k chars'), h('th',{class:'num'}, 'share')))); const obb=h('tbody');
+  for (const f of D.families.filter(f=>f.fam!=='Other models')){ const v=D.out_by_fam[f.fam]; if(!v.measured||v.measured<100) continue; obb.append(h('tr',{}, h('td',{}, f.fam), h('td',{class:'num'}, fmt(v.measured)), h('td',{class:'num'}, fmt(v.over10k)), h('td',{class:'num'}, pct(v.over10k/v.measured)))); } ob.append(obb);
+  card('#c-output','output','output', h('div',{}, h('div',{class:'fig-title'}, 'Output size, where the harness recorded it'), h('div',{class:'scroll'}, ob)), `Codex output lengths are token-counted by the harness and not comparable, so Codex models are omitted here`);
+}
+
+/* ---------- 07 rules ---------- */
+{
+  const rules = [
+    ['do','Write the dialect of the shell that will run it',`Only Claude’s Bash tool is POSIX here. Codex, OpenCode and Cursor land in PowerShell or cmd.exe. Check once at session start; neutral commands (git, bun, gh) are safe anywhere.`,`mismatch ${pct(m.fail.fail_rate)} vs matched ${pct(m.ok_rate_when_matched.fail_rate)} · POSIX on Git Bash ${pct(dhv('posix','git-bash'))} · on PS 5.1 ${pct(dhv('posix','powershell5'))} · on cmd.exe ${pct(dhv('posix','cmd.exe'))}`],
+    ['dont','Pipe into head, tail, cat or grep on a PowerShell host',`Use Select-Object -First n, Get-Content, Select-String, or hand it to a Grep/Read tool.`,`head ${det['unix tool in Windows shell: head']||0} · tail ${det['unix tool in Windows shell: tail']||0} · grep ${det['unix tool in Windows shell: grep']||0} · ${o.head_in_ps} “| head” and ${o.cat_in_ps} “cat” into PS/cmd hosts`],
+    ['do','After a not-found error, switch dialect instead of rewording',`Rewriting the same failing dialect is a coin flip; a neutral or native form works nearly every time.`,`posix→neutral ok ${nf['switched dialect posix->neutral | then ok']||0} · posix→powershell ok ${nf['switched dialect posix->powershell | then ok']||0} · same dialect ${nf['rewrote same dialect | then ok']||0} ok / ${nf['rewrote same dialect | still failing']||0} fail`],
+    ['dont','Chain with “;” and trust exit 0',`A ; chain returns the last status. PS 5.1 rejects &&, so check $LASTEXITCODE after each step there; use && in Bash or pwsh 7.`,`${fmt(T.hidden)} hidden (${pct(T.hidden/T.records)}) · git chains hidden ${pct((D.cat_totals.git||{}).hr)} · ${o.and_and_on_ps5} && on PS 5.1`],
+    ['do','In a Codex cell, print the whole result',`text(r) carries exit_code and wall time; text(r.output) hides both.`,`visible: ${exitFams.map(x=>x.fam+' '+p0(x.v)).join(' · ')||'no Codex data'} · ${fmt(o.r_output_only_hides_exit)} results without one`],
+    ['dont','Put a program on one line with python -c or node -e',`Feed it on stdin with a heredoc, write a scratch file, or use a PowerShell here-string.`,`python -c ${ikp('python -c')} · heredoc ${ikp('python heredoc/stdin')} · node -e ${ikp('node -e/-p')} · node stdin ${ikp('node stdin/heredoc')} · here-string ${ikp('PS here-string')} · jq ${ikp('jq')}`],
+    ['do','Treat an embedded program as the riskiest kind of shell call',`Keep it short, keep it on stdin, prefer the dedicated tool when one exists.`, D.families.filter(x=>x.interp_share&&x.fail_with_interp!=null&&x.n>=400).slice(0,5).map(x=>`${x.fam} ${p0(x.fail_with_interp)} vs ${p0(x.fail_without)}`).join(' · ')],
+    ['dont','Reword a locked or permission-denied command',`Locks are transient. Wait or kill the holder, then retry verbatim.`,`identical retry ok ${pl['identical retry | then ok']||0} · reworded ${pl['rewrote same dialect | then ok']||0} ok / ${pl['rewrote same dialect | still failing']||0} fail`],
+    ['do','Cap output before it comes back',`Ask for the slice: -n, Select-Object -First, sed -n, rg with a limit.`,`${fmt(D.output.n_over_10k)} of ${fmt(D.output.measured)} measured outputs over 10k chars (${pct(D.output.n_over_10k/D.output.measured)}) · ${fmt(D.output.n_over_30k)} over 30k`],
+    ['dont','Read and search through the shell when a Read/Grep tool is on the belt',`It spends context on raw text and skips line numbers, truncation and caching.`,`read-file via shell ${fmt((D.cat_totals['read-file']||{}).n)} · search via shell ${fmt((D.cat_totals.search||{}).n)}${chosen?` · ${chosen.f.fam}: ${fmt(TS[chosen.f.fam]['read/search'])} dedicated reads vs ${fmt(chosen.f.cats['read-file']||0)} shell reads`:''}`],
+    ['do','Let the JS cell batch, keep each command literal',`A command built from JS variables leaves nothing in the transcript to audit.`,`js-only cells fail ${pct(D.buckets['js-only'].fr)} · ${fmt(o.multi_cmd_cells)} multi-command cells · ${fmt(o.dynamic_cmd_in_js)} commands assembled from variables`],
+    ['dont','Take the harness failure flag as the whole story',`Read output for “not recognized”, “Traceback”, “syntax error” even at exit 0.`,`flagged ${pct(T.fail/T.records)} · hidden ${pct(T.hidden/T.records)} · by host: ${Object.entries(D.by_host).map(([k,v])=>k+' '+pct(v.hr)).join(' · ')}`],
+  ];
+  const box = h('div',{class:'rules'});
+  for (const [k,title,body,ev] of rules) box.append(h('div',{class:'rule'}, h('span',{class:'k '+k}, k==='do'?'do':'don’t'), h('div',{}, h('h4',{}, title), h('p',{}, body), h('div',{class:'ev'}, ev))));
+  card('#c-rules','rules','rules', box, `every number is from the cards above`);
+}
+
+/* ---------- 08 what to change ---------- */
+{
+  const claude = `# Shell rules (Windows host)
+- The Bash tool is Git Bash (POSIX). The PowerShell tool is pwsh 7. Never mix dialects in one call.
+- Prefer Read / Grep / Glob for reading and searching; use the shell for git, builds, tests, processes.
+- Multi-line programs: feed them on stdin (python - <<'EOF' … EOF) or Write a scratch file and run it.
+  Never python -c / node -e over ~80 chars.
+- Chains: use && (or set -e) so an early failure stops the chain. Never a; b; c.
+- Cap output: head -n, sed -n, rg --max-count. Never cat a whole file into the transcript.
+- On "not recognized" / "command not found": switch dialect or tool, do not reword.
+- On lock / permission errors: wait 2s and retry the identical command once.`;
+  const codex = `# Shell rules (Codex on Windows)
+- exec_command runs PowerShell. Use Select-Object -First n, Get-Content, Select-String, Get-ChildItem.
+  Never head, tail, cat, grep, ls -la, 2>/dev/null, $(…).
+- Always print the full result: text(r). Never text(r.output). Check r.exit_code before continuing.
+- Write files with a here-string (@'…'@ | Set-Content -Encoding utf8 path) or apply_patch.
+  Never a one-line python -c / node -e with quotes inside.
+- One command per exec_command call unless the commands are independent; never a; chain that
+  depends on an earlier step.
+- Use shell:"cmd.exe" only for type / dir / where.`;
+  const opencode = `# Shell rules (OpenCode on Windows)
+- The bash tool runs under Windows PowerShell 5.1: && and || are parse errors. Use ; and check
+  $LASTEXITCODE (or $?) after each step, or run one command per call.
+- The shell tool is cmd.exe: use type / dir / findstr / where, chain with &.
+- Prefer read / grep / glob tools over Get-Content and Select-String.
+- Write files with the write tool, not here-strings.`;
+  const hook = `// .claude/hooks/shell-guard.mjs  (PreToolUse on Bash + PowerShell)
+// Rejects the patterns that fail most on this machine, before they run.
+import { readFileSync } from "node:fs";
+const ev = JSON.parse(readFileSync(0, "utf8"));
+const cmd = ev.tool_input?.command ?? "";
+const ps = ev.tool_name === "PowerShell";
+const bad = [
+  ps && /\\|\\s*(head|tail|grep|wc)\\b/.test(cmd) && "Unix tool in PowerShell: use Select-Object -First / Select-String",
+  ps && /2>\\/dev\\/null|\\$\\(/.test(cmd) && "POSIX syntax in PowerShell",
+  !ps && /\\b(Get-Content|Select-String|Get-ChildItem)\\b/.test(cmd) && "PowerShell cmdlet in Bash",
+  /\\b(python3?|node)\\s+-[ce]\\s+["'].{80,}/.test(cmd) && "long -c/-e one-liner: use a heredoc or a scratch file",
+  /;\\s*(git|bun|npm|tsc)\\b/.test(cmd) && !/&&/.test(cmd) && "; chain hides early failures: use &&",
+].filter(Boolean);
+if (bad.length) { console.error("shell-guard: " + bad.join(" · ")); process.exit(2); }`;
+  const settings = `// ~/.claude/settings.json
+{ "hooks": { "PreToolUse": [ { "matcher": "Bash|PowerShell",
+    "hooks": [ { "type": "command", "command": "node ~/.claude/hooks/shell-guard.mjs" } ] } ] } }`;
+  const body = h('div',{},
+    h('div',{class:'callout'}, h('b',{}, 'Order of leverage. '), 'Instructions the agents already read (CLAUDE.md, AGENTS.md) fix most of this for free; a pre-tool hook catches the reflexes instructions don’t; picking the harness with a POSIX host for shell-heavy work on Windows removes the mismatch class entirely.'),
+    h('div',{class:'two'},
+      h('div',{}, h('div',{class:'fig-title'}, '1 · Global ~/.claude/CLAUDE.md (Claude Code)'), h('pre',{class:'snip'}, claude), h('div',{class:'fig-title', style:'margin-top:12px'}, '3 · OpenCode AGENTS.md overlay'), h('pre',{class:'snip'}, opencode)),
+      h('div',{}, h('div',{class:'fig-title'}, '2 · ~/.codex/AGENTS.md (Codex)'), h('pre',{class:'snip'}, codex), h('div',{class:'fig-title', style:'margin-top:12px'}, '4 · Claude Code hook that blocks the reflexes'), h('pre',{class:'snip'}, hook), h('pre',{class:'snip'}, settings))),
+    h('ul',{class:'plain', style:'margin-top:12px'},
+      h('li',{}, h('b',{}, '5 · Route shell-heavy work to a POSIX host. '), `Failure rate by host on this machine: ${Object.entries(D.by_host).map(([k,v])=>k+' '+pct(v.fr)).join(' · ')}. OpenCode accepts a "shell" key in opencode.json ("Default shell to use for terminal and bash tool") and an OPENCODE_GIT_BASH_PATH env var; point it at Git Bash. Codex on Windows has no bash host option; its exec_command shell parameter accepts cmd.exe and PowerShell paths.`),
+      h('li',{}, h('b',{}, '6 · A PostToolUse hook for hidden failures. '), 'Scan Bash/PowerShell output for “not recognized”, “command not found”, “Traceback”, “syntax error” and inject a one-line warning even when exit is 0. This is the only fix for the ; chain problem that does not depend on the model remembering.'),
+      h('li',{}, h('b',{}, '7 · Re-run this corpus in a month. '), 'The pipeline is four scripts; the rules above should move the not-found and hidden-failure numbers first, then the -c one-liner rate.')));
+  card('#c-change','change','change', body, `snippets written for a Windows host with Git Bash and pwsh 7 installed; on macOS/Linux only the output-cap, heredoc and exit-code rules apply`);
+}
+
+/* ---------- 09 gallery ---------- */
+{
+  const G = D.gallery; const Fm = $('#filters'); const state = {f:'',c:'',o:'',i:'',d:'',s:'',q:''}; let shown = 30;
+  const opts = (key,label,values)=>{ const sel=h('select',{onchange:e=>{state[key]=e.target.value; shown=30; render();}}, h('option',{value:''},'all'), ...values.map(v=>h('option',{value:v},v))); Fm.append(h('div',{}, h('label',{},label), sel)); };
+  const uniq = k => [...new Set(G.map(g=>g[k]).filter(Boolean))].sort();
+  opts('f','Model', D.families.map(f=>f.fam)); opts('s','Harness', uniq('s')); opts('c','Job', uniq('c')); opts('d','Dialect', uniq('d')); opts('i','Embedded form', uniq('i'));
+  Fm.append(h('div',{}, h('label',{},'Outcome'), h('select',{onchange:e=>{state.o=e.target.value; shown=30; render();}}, h('option',{value:''},'all'), h('option',{value:'ok'},'ok'), h('option',{value:'fail'},'failed'), h('option',{value:'hid'},'hidden failure'))));
+  Fm.append(h('div',{}, h('label',{},'Search'), h('input',{type:'search', placeholder:'head, Get-Content, python -c', oninput:e=>{state.q=e.target.value.toLowerCase(); shown=30; render();}})));
+  const list = $('#gallery-list');
+  function render(){ const rows = G.filter(g=>(!state.f||g.f===state.f)&&(!state.s||g.s===state.s)&&(!state.c||g.c===state.c)&&(!state.d||g.d===state.d)&&(!state.i||g.i===state.i)&&(!state.o||(state.o==='ok'?g.ok===true&&!g.hid:state.o==='fail'?g.ok===false:g.hid))&&(!state.q||(g.cmd+' '+g.out+' '+g.cause+' '+g.det).toLowerCase().includes(state.q)));
+    list.replaceChildren(...rows.slice(0,shown).map(g=>exCard(g))); $('#gcount').textContent = `${fmt(Math.min(shown,rows.length))} of ${fmt(rows.length)} matching · ${fmt(G.length)} sampled from ${fmt(T.records)}`; $('#gcount-top').textContent = G.length?`${fmt(G.length)} commands`:'gallery disabled (--no-gallery)'; $('#more').style.display = shown<rows.length?'':'none'; }
+  $('#more').addEventListener('click', ()=>{ shown += 30; render(); }); render();
+}
+</script>
