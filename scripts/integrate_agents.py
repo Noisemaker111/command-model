@@ -71,9 +71,6 @@ def main():
     if receipt["state"] != "MERGED" or receipt["baseRefName"] != "agents":
         raise RuntimeError("Merge receipt did not confirm agents integration")
     print(json.dumps(receipt), flush=True)
-    # Prepare the human's next release batch; this helper never merges main.
-    from prepare_release import prepare
-    print(json.dumps(prepare(receipt["mergeCommit"]["oid"])))
 
 
 if __name__ == "__main__":
