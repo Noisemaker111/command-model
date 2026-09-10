@@ -18,7 +18,6 @@ existing PRs for the same work. Run commands from the repository root with Pytho
 python -m compileall -q scripts experiments/command_specialist
 python -m unittest discover -s experiments/command_specialist -p test_bindings.py -v
 python -m unittest discover -s experiments/command_specialist -p test_contract.py -v
-python -m unittest discover -s scripts -p test_workspace.py -v
 ```
 
 Also verify the affected user operation through the public CLI and reopen its saved
@@ -77,40 +76,13 @@ by Jon and agents: human authorization is a workflow rule, not an independently
 verified GitHub reviewer identity. The coordinator cannot merge stable. No package
 or runtime deployment is implied by either merge.
 
-## Fresh session workspaces
+## Switching branches
 
-Install the PowerShell shortcut once from a reviewed checkout:
+Use the shared `agents-and-main` skill command: `sb agents` or `sb main` inside
+the intended project checkout. It switches the branch and fast-forwards from
+origin; Git retains the selection. Install the command once from the skill's
+`scripts/install.ps1`. No project-specific launcher or selection state is needed.
 
-```powershell
-./scripts/install_workspace.ps1 -Repository C:/Users/Jk101/Projects/shell-forensics
-```
-
-The installer copies the helper into `~/.local/share/shell-forensics` and puts
-`sf.ps1` in `~/.local/bin` (which must be on PATH). It requires Git and Python;
-`sf codex` also requires the Codex CLI. Re-run the installer to update the helper.
-
-| Command | Effect |
-| --- | --- |
-| `sf agents` | Select development for future workspaces (the initial default). |
-| `sf main` | Select stable for future workspaces. |
-| `sf status` | Show the saved selection. |
-| `sf new --name my-task` | Fetch the selected branch and print a fresh owned workspace path. |
-| `sf codex` | Create a fresh workspace and launch Codex CLI with `-C` pointing there. |
-
-Run these from any directory. For the Codex desktop app, open the path printed by
-`sf new`. Existing sessions opened at home, Projects, or the old repository folder
-are not automatically moved. The root checkout is an anchor, not a rolling live
-installation. Never flip its branch underneath another session.
-
-Each session gets its own writable branch under `.worktrees/sessions`, starting
-at an exact fetched commit. Integration goes through the normal agents PR/CI path;
-new sessions receive later integrated changes, while active sessions keep their
-files. The selector neither merges nor verifies CI itself. Selection and creation
-receipts persist under the common Git directory's `workspace-selector`; `sf new
---json` returns the receipt. A fetch failure stops creation rather than using stale
-source. Dependencies and runtime state still need the normal per-session setup;
-this does not isolate the shared model service or implement a host adapter.
-
-No workspaces are automatically deleted or refreshed. Once a session is finished,
-inspect its changes before removing its worktree with Git. Workspace creation can
-consume disk space; keep unfinished work and evidence when cleaning up.
+Switch only a checkout you own. Agents keep active work in isolated worktrees;
+the command refuses dirty checkouts and branches owned by another worktree.
+It does not move existing sessions or reload running processes.
