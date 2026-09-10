@@ -86,7 +86,7 @@ def verify(out, shell="powershell", serial_samples=0):
     return report
 
 
-def export_train(frozen, out, verification):
+def export_train(frozen, out, verification, read_recovery=None):
     if verification["failures"] or verification["passed"] != 800:
         raise ValueError("Complete successful verifier evidence is required")
     manifest = json.loads((frozen / "manifest.json").read_text(encoding="utf-8"))
@@ -95,8 +95,25 @@ def export_train(frozen, out, verification):
     if sha != manifest["artifact_sha256"]["train"]:
         raise ValueError("Frozen training partition changed")
     rows = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
+    if any(row.get("partition") != "train" for row in rows):
+        raise ValueError("Frozen training file contains a non-training record")
     candidates = [r for r in rows if r["read_contract_candidate"] and not any(
         reason in r["review_reasons"] for reason in ("conflicting_call_id", "changing_source"))]
+    direct_candidates = len(candidates)
+    recovery_hash = None
+    if read_recovery:
+        recovery_report = json.loads((read_recovery / "report.json").read_text(encoding="utf-8"))
+        recovered_raw = (read_recovery / "read-candidates.jsonl").read_bytes()
+        recovery_hash = hashlib.sha256(recovered_raw).hexdigest()
+        if (recovery_report["frozen_train_sha256"] != sha or recovery_report["used_partitions"] != ["train"]
+                or recovery_report["candidates_sha256"] != recovery_hash):
+            raise ValueError("Read recovery changed or belongs to another partition")
+        for row in map(json.loads, recovered_raw.splitlines()):
+            plan = row["plan"]
+            if (row["partition"] != "train" or plan.get("op") not in {"read_head", "read_tail"}
+                    or type(plan.get("limit")) is not int or not 1 <= plan["limit"] <= 100):
+                raise ValueError("Invalid training read candidate")
+            candidates.append({"id": "ast-" + row["id"], "read_contract_candidate": plan})
     # Preserve record ancestry, but avoid multiplying identical generated instructions.
     groups = collections.defaultdict(list)
     for row in candidates:
@@ -114,6 +131,7 @@ def export_train(frozen, out, verification):
                    "origin": "synthetic-intent-from-train-command-family",
                    "request": requests[wording], "expected": {"op": op, "path": relative, "value": "", "limit": limit},
                    "source_training_records": parents,
+                   "read_recovery_sha256": recovery_hash,
                    "verification": "synthetic-operation-semantics; not original task correctness"}
             examples.append(row)
     for filename, rows in (("verified-train.jsonl", examples), ("sft.jsonl", [
@@ -123,7 +141,9 @@ def export_train(frozen, out, verification):
         if path.exists():
             raise ValueError("Export exists; refusing to overwrite")
         path.write_bytes(b"".join(json_bytes(row) for row in rows))
-    report = {"historical_training_candidates": len(candidates), "distinct_operation_count_pairs": len(groups),
+    report = {"training_source_candidates": len(candidates), "direct_frozen_candidates": direct_candidates,
+              "ast_candidates": len(candidates) - direct_candidates, "read_recovery_sha256": recovery_hash,
+              "distinct_operation_count_pairs": len(groups),
               "synthetic_training_examples": len(examples), "frozen_train_sha256": sha,
               "used_partitions": ["train"], "verifier_cases": verification["passed"],
               "sft_sha256": hashlib.sha256((out / "sft.jsonl").read_bytes()).hexdigest(),
@@ -139,9 +159,10 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--shell", default="powershell")
     parser.add_argument("--serial-samples", type=int, default=0, help="Optional fresh-process baseline sample, maximum 100")
+    parser.add_argument("--read-recovery", type=Path, help="Verified-integrity AST recovery from the same frozen training partition")
     args = parser.parse_args()
     evidence = verify(args.out, args.shell, args.serial_samples)
-    export = export_train(args.frozen, args.out, evidence)
+    export = export_train(args.frozen, args.out, evidence, args.read_recovery)
     print(json.dumps({"verification": evidence, "export": export}, indent=2))
 
 

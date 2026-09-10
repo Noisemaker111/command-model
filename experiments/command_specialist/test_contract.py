@@ -7,6 +7,20 @@ from contract import execute_plan, evidence_result, validate_plan
 
 
 class ContractTests(unittest.TestCase):
+    def test_simple_globs_do_not_use_dos_wildcard_rules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('a.txt', 'ab.txt', 'README'):
+                (root / name).write_text('fixture')
+            (root / 'nested').mkdir()
+            (root / 'nested/ac.txt').write_text('not included')
+            for pattern, expected in [('*.*', 'a.txt\nab.txt'), ('a?.txt', 'ab.txt')]:
+                for backend in ('powershell', 'native'):
+                    with self.subTest(pattern=pattern, backend=backend):
+                        result = execute_plan({'op': 'list_files', 'path': '.', 'value': pattern, 'limit': 100}, root, backend=backend)
+                        self.assertEqual(result['exit_code'], 0, result)
+                        self.assertEqual(result['stdout'], expected)
+
     def test_utf8_and_significant_whitespace_survive_both_backends(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

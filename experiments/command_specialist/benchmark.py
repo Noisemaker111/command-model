@@ -13,7 +13,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from contract import PLAN_SCHEMA, EVIDENCE_SCHEMA, evidence_result, execute_plan, messages
+from contract import evidence_result, execute_plan, messages, prediction_schema
 
 
 def post(base: str, path: str, body: dict) -> dict:
@@ -26,7 +26,7 @@ def predict(base: str, model: str, case: dict) -> tuple[dict, dict]:
     start = time.perf_counter()
     response = post(base, "/api/chat", {
         "model": model, "messages": messages(case), "stream": False,
-        "format": PLAN_SCHEMA if case["kind"] == "plan" else EVIDENCE_SCHEMA,
+        "format": prediction_schema(case),
         "think": False, "keep_alive": "5m",
         "options": {"temperature": 0, "seed": 20260909, "num_ctx": 4096, "num_predict": 160},
     })
@@ -35,13 +35,23 @@ def predict(base: str, model: str, case: dict) -> tuple[dict, dict]:
     return json.loads(response["message"]["content"]), timing
 
 
+def equivalent_output(case: dict, actual: str, expected: str) -> bool:
+    if case["expected"]["op"] != "json_field":
+        return actual == expected
+    # Compare JSON values, not equivalent wire encodings such as apostrophe
+    # versus \\u0027. Canonical serialization also distinguishes true from 1.
+    def canonical(text):
+        return json.dumps(json.loads(text), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return canonical(actual) == canonical(expected)
+
+
 def score(case: dict, prediction: dict, root: Path, expected_output: dict | None, backend: str = "powershell") -> dict:
     if case["kind"] == "plan":
         start = time.perf_counter()
         actual = execute_plan(prediction, root, backend=backend)
         execution_ms = (time.perf_counter() - start) * 1000
         passed = (actual["exit_code"] == 0 and expected_output["exit_code"] == 0
-                  and actual["stdout"] == expected_output["stdout"])
+                  and equivalent_output(case, actual["stdout"], expected_output["stdout"]))
         return {"passed": passed, "plan_exact": prediction == case["expected"],
                 "execution_ms": execution_ms, "result": actual}
     actual = evidence_result(prediction, case)
@@ -141,6 +151,7 @@ def main() -> None:
             handle.flush()
             print(json.dumps({k: row[k] for k in ["id", "passed", "wall_ms"]}), flush=True)
     report = {"model": args.model, "split": args.split, "warmup": warmup,
+              "scoring_policy": "json_field: canonical JSON value; other operations: exact stdout; evidence: exact line set",
               "test_sha256": hashlib.sha256((args.data / f"{args.split}.jsonl").read_bytes()).hexdigest(),
               "conditions": {"thinking": False, "context": 4096, "max_new_tokens": 160, "temperature": 0,
                              "execution_backend": args.backend,

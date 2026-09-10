@@ -87,7 +87,7 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(verified["passed"], 800)
             frozen = root / "frozen"
             frozen.mkdir()
-            row = {"id": "example", "review_reasons": [], "read_contract_candidate": {
+            row = {"id": "example", "partition": "train", "review_reasons": [], "read_contract_candidate": {
                 "op": "read_head", "limit": 4, "path": "fixture.txt", "value": ""}}
             raw = (json.dumps(row) + "\n").encode()
             (frozen / "train.jsonl").write_bytes(raw)
