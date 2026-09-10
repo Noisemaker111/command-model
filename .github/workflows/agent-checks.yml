@@ -28,5 +28,7 @@ jobs:
         run: python -m unittest discover -s experiments/command_specialist -p test_bindings.py -v
       - name: Native and PowerShell contract invariants
         run: python -m unittest discover -s experiments/command_specialist -p test_contract.py -v
+      - name: English delegation evidence and authorization invariants
+        run: python -m unittest discover -s experiments/command_specialist -p test_delegate.py -v
       - name: Frozen main candidate and patch notes
         run: python scripts/check_release.py
