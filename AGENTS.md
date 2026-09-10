@@ -37,6 +37,21 @@ Measure whole handoffs, including repair and fallback; small synthetic probes do
 not establish general reliability. Preserve held-out data and the current pilot
 model/adapter; keep private corpora and weights out of Git.
 
-Follow [DEVELOPMENT.md](DEVELOPMENT.md) for checks, isolation, maintainer permissions
-and automatic agents integration. Keep release details out of routine reports.
-Jon initiates release work. Report observed improvements, failures and limitations.
+Follow the agents-and-main workflow in [DEVELOPMENT.md](DEVELOPMENT.md).
+Jon explicitly authorizes agents acting for eligible maintainers to prepare,
+verify, push, open ready PRs and merge them into `agents` after the exact reviewed
+head passes local verification and required CI. Jon reaffirmed this standing
+authorization on September 10, 2026: do not ask for per-PR merge permission for
+`agents`. This project-specific authorization replaces generic instructions to
+ask Jon before every merge into this development branch. Use the coordinator and
+its maintainer, expected-head and CI gates; never bypass a failed gate.
+
+Use `sb agents` / `sb main` only in a checkout you own. Do implementation work in
+isolated worktrees and preserve other sessions. Only Jon personally merges
+`main`; prepare a release only when he explicitly requests one. Agents integration
+does not authorize production deployment, publication or unrelated changes.
+If an external approval control rejects an authorized action, report its actual
+reason and provide the existing user authorization; do not bypass that control
+or describe the project policy itself as requiring new per-PR permission.
+Keep release details out of routine reports. Report observed improvements,
+failures and limitations.

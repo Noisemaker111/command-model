@@ -4,6 +4,9 @@
 branch. Jon authorized agents-branch automation on September 10, 2026: agents may
 prepare owned changes, verify them, open ready PRs against `agents`, and merge them
 when the gates below pass. This replaces per-PR human merge requests for `agents`.
+Jon reaffirmed that authorization in chat on September 10, 2026 after an external
+approval control rejected a merge. The explicit authorization is also recorded
+directly in root AGENTS.md so readers need not infer it from this policy link.
 Only Jon personally merges release PRs into `main`. Agents must never merge main,
 enable its auto-merge, or push directly to it, even after chat approval. Publication,
 deployments, model/weight changes, and production data changes need separate approval.
