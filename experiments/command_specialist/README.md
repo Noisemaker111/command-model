@@ -230,6 +230,9 @@ just exact command text. Evidence success requires the exact relevant line set;
 recall and precision are also reported. Invalid JSON, invalid plans, timeouts, and
 invalid line selections count as failures. The runtime guarantees verbatim selected
 text, but cannot guarantee that the model selected all relevant evidence.
+See the [nonempty negative-case diagnostics](EVIDENCE_DIAGNOSTICS.md): a small
+context treatment raised aggregate accuracy while regressing long-page evidence,
+so it was not adopted.
 
 `rules` is a real non-ML evidence-selection baseline. `deterministic` is an oracle
 typed-input latency floor; it must not be presented as natural-language accuracy.
