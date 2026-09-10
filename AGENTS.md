@@ -25,9 +25,10 @@ shared Ollama service. Retain `shell-specialist-pilot` and its existing adapter.
 `.github/workflows/agent-checks.yml` runs the required `Windows core` check on PRs
 into both branches and pushes to `agents`. It runs on a hosted Windows runner with
 read-only permissions and no persisted checkout credentials. PR code never receives
-a privileged merge token. Both branches require this GitHub Actions check and an
-up-to-date PR, prevent force pushes/deletion, and apply protection to administrators.
-No approving review is required for `agents`.
+a privileged merge token. `agents` requires this GitHub Actions check and an up-to-date PR, prevents force
+pushes/deletion, and applies protection to administrators. No approving review is
+required for `agents`. Main protection is pending Jon's choice of GitHub review
+enforcement versus explicit chat approval; do not claim it is server-enforced.
 
 The local coordinator is `scripts/integrate_agents.py`. After reviewing the diff,
 verifying the current head locally, and waiting for CI, run:
@@ -57,7 +58,7 @@ For stable promotion, branch a frozen release candidate from a verified agents
 revision and open a ready PR into `main`. Include the full diff, user-facing notes,
 verification evidence, and rollback target (the prior main revision). Later agents
 changes must not join that candidate silently. Ask Jon to approve that concrete
-batch before merging. GitHub PR/check gates are enforced, but this account is shared
+batch before merging. The agents GitHub PR/check gates are enforced, but this account is shared
 by Jon and agents: human authorization is a workflow rule, not an independently
 verified GitHub reviewer identity. The coordinator cannot merge stable. No package
 or runtime deployment is implied by either merge.
