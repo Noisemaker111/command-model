@@ -69,6 +69,11 @@ MIT license.
 
 ## Local command model experiment
 
+The current [command-specialist direction](experiments/command_specialist/PURPOSE.md)
+is English delegation of bounded command/cell work from a frontier agent to a
+fresh local worker, returning verified evidence. It distinguishes the narrow
+trained inspection pilot from the broader runtime and its measured host results.
+
 The optional [command specialist pilot](experiments/command_specialist/README.md)
 audits training-data quality, benchmarks small local models on bounded PowerShell
 inspection and evidence-selection tasks, and trains a local LoRA adapter. Its

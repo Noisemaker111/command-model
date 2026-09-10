@@ -1,5 +1,10 @@
 # Ten-stage incident packet pilot
 
+Read [project purpose and evidence](../PURPOSE.md) for the distinction between
+the trained inspection adapter, the English runtime and measured frontier results.
+This document describes its named prototype or historical experiment, not general
+command-execution reliability.
+
 September 10, 2026. Three sequential fresh Codex CLI sessions used gpt-6-astra,
 low effort, existing login/configuration and normal approval review. Local workers
 used shell-specialist-f16 with the unchanged pilot adapter, 32768 context, 8192

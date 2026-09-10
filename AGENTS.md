@@ -6,6 +6,21 @@ work, inspect real outcomes, repair ordinary failures, and return compact verifi
 evidence with retrievable raw output. Each delegation gets a fresh, bounded worker
 lifecycle. A generated program or claimed success is not completion.
 
+Read [project purpose and evidence](experiments/command_specialist/PURPOSE.md)
+before choosing the next experiment. The frontier owns reasoning and delegation;
+the worker owns bounded mechanical implementation and verified evidence. The
+486-example inspection/evidence adapter is not an English code-execution-trained
+model. Keep product intent, trained capability and measured behavior distinct.
+
+Prioritize a correct grounded handoff through the real frontier host, then a
+matched normal-shell comparison. Do not substitute model-size, training-speed,
+or local inference experiments for that outcome. Tie supporting experiments to
+an observed failure or bottleneck and a stated decision. Preserve the successful
+single-handoff smoke and failed expanded workload as separate evidence. Never
+infer savings from failed tasks, force baseline call counts, or treat missing
+input contents as something the model should guess. Distinguish proposed,
+unmerged, merged and host-verified behavior in documentation.
+
 Work autonomously: choose the next observed failure or bottleneck, measure it,
 make the smallest useful improvement, verify the actual user operation and saved
 result, then continue. Coordinate with other agents and existing PRs instead of

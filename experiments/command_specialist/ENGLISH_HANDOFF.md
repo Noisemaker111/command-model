@@ -1,5 +1,10 @@
 # English handoff contract (prototype v1)
 
+Read [project purpose and evidence](PURPOSE.md) for the distinction between
+the trained inspection adapter, the English runtime and measured frontier results.
+This document describes its named prototype or historical experiment, not general
+command-execution reliability.
+
 A frontier supplies one English task, exact target bindings, relevant runtime/API
 context, constraints, and an observable completion condition. The frontier does
 not supply generated source, escaped shell strings, or a command sequence.
@@ -83,8 +88,9 @@ The full contract must accommodate this without the frontier writing code:
 The frontier supplies checker and recorder bindings, the actual banner/cancel
 markers and concise node-pty API context. Completion requires observations from
 the real recorder and reopened saved report, not a replacement printing markers.
-This Python-only prototype cannot yet perform that workload, host-native
-permissions, or configured frontier return integration. The earlier file adapter
+This Python-only prototype cannot yet perform that workload or provide full
+host-native per-command permissions. Configured frontier return integration has
+been exercised separately through the [Codex MCP prototype](codex/RESULTS.md). The earlier file adapter
 remains separate pending a verified replacement; its result is not proof of
 English delegation.
 

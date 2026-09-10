@@ -1,5 +1,10 @@
 # Codex English-delegation hookup
 
+Read [project purpose and evidence](../PURPOSE.md) for the distinction between
+the trained inspection adapter, the English runtime and measured frontier results.
+This document describes its named prototype or historical experiment, not general
+command-execution reliability.
+
 This connects the local FP16 worker to a **fresh Codex chat**, and captures a
 comparison against Codex using its normal shell/file tools. It does not compare
 two local models. It is a Windows, trusted-workspace Python-task prototype.

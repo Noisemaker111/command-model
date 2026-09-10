@@ -1,5 +1,10 @@
 # Configured Codex hookup observations
 
+Read [project purpose and evidence](../PURPOSE.md) for the distinction between
+the trained inspection adapter, the English runtime and measured frontier results.
+This document describes its named prototype or historical experiment, not general
+command-execution reliability.
+
 September 10, 2026. These are development hookup smokes, not a frozen benchmark.
 The frontier was the installed Codex CLI with its existing ChatGPT login,
 `gpt-6-astra`, low reasoning, normal user configuration and workspace-write with
