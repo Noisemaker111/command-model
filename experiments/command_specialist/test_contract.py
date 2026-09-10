@@ -7,6 +7,17 @@ from contract import execute_plan, evidence_result, validate_plan
 
 
 class ContractTests(unittest.TestCase):
+    def test_utf8_and_significant_whitespace_survive_both_backends(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "utf8.txt").write_text("  café 漢字  \n\n", encoding="utf-8")
+            plan = {"op": "read_head", "path": "utf8.txt", "value": "", "limit": 2}
+            for backend in ("native", "powershell"):
+                with self.subTest(backend=backend):
+                    result = execute_plan(plan, root, backend=backend)
+                    self.assertEqual(result["exit_code"], 0, result)
+                    self.assertEqual(result["stdout"], "  café 漢字  \n")
+
     def test_all_operations_and_literal_shell_metacharacters(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

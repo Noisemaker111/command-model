@@ -5,6 +5,10 @@ requests into commands and select useful evidence from output. It is a Windows
 PowerShell capability pilot, not a general shell agent or a SOTA claim.
 
 See [measured pilot results](RESULTS.md) and the [model shortlist and feasibility analysis](RESEARCH.md).
+The [data preparation pipeline](DATA_PIPELINE.md) adds source snapshots, automated
+fact extraction, frozen 30/10/50/10 review partitions, and executable label checks.
+See the [data-pipeline measurements](DATA_RESULTS.md) for recovered volume,
+partition sizes, and the scoped bulk-verification throughput result.
 
 The model emits a typed plan for five operations: first lines, last lines, literal
 search, nonrecursive filename listing, and a top-level JSON field. Ordinary Python

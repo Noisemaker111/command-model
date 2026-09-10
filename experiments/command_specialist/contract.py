@@ -75,13 +75,13 @@ def compile_plan(plan: dict, root: Path) -> str:
     path = ps_quote(str(validate_plan(plan, root)))
     value, n = ps_quote(plan["value"]), plan["limit"]
     commands = {
-        "read_head": f"Get-Content -LiteralPath {path} -TotalCount {n}",
-        "read_tail": f"Get-Content -LiteralPath {path} -Tail {n}",
-        "find_literal": f"Select-String -LiteralPath {path} -SimpleMatch -Pattern {value} | Select-Object -First {n} -ExpandProperty Line",
+        "read_head": f"Get-Content -LiteralPath {path} -Encoding UTF8 -TotalCount {n}",
+        "read_tail": f"Get-Content -LiteralPath {path} -Encoding UTF8 -Tail {n}",
+        "find_literal": f"Select-String -LiteralPath {path} -Encoding UTF8 -SimpleMatch -Pattern {value} | Select-Object -First {n} -ExpandProperty Line",
         "list_files": f"Get-ChildItem -LiteralPath {path} -File -Filter {value} | Sort-Object Name | Select-Object -First {n} -ExpandProperty Name",
-        "json_field": f"$document = Get-Content -LiteralPath {path} -Raw | ConvertFrom-Json; $document.PSObject.Properties[{value}].Value | ConvertTo-Json -Compress -Depth 20",
+        "json_field": f"$document = Get-Content -LiteralPath {path} -Encoding UTF8 -Raw | ConvertFrom-Json; $document.PSObject.Properties[{value}].Value | ConvertTo-Json -Compress -Depth 20",
     }
-    return "$ErrorActionPreference='Stop'; " + commands[plan["op"]]
+    return "$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); " + commands[plan["op"]]
 
 
 def execute_plan(plan: dict, root: Path, shell: str = "powershell", backend: str = "powershell") -> dict:
@@ -106,15 +106,15 @@ def execute_plan(plan: dict, root: Path, shell: str = "powershell", backend: str
                 selected = [line for line in lines if value.casefold() in line.casefold()][:n]
             stdout = "\n".join(selected)
         return {"command": command, "backend": "native", "exit_code": 0,
-                "stdout": stdout.strip(), "stderr": ""}
+                "stdout": stdout, "stderr": ""}
     if backend != "powershell":
         raise ValueError("unknown execution backend")
     result = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command", command],
                             capture_output=True, text=True, encoding="utf-8", errors="replace",
                             timeout=15, cwd=root)
     return {"command": command, "exit_code": result.returncode,
-            "stdout": result.stdout.replace("\r\n", "\n").strip(),
-            "stderr": result.stderr.replace("\r\n", "\n").strip()}
+            "stdout": result.stdout.replace("\r\n", "\n").removesuffix("\n"),
+            "stderr": result.stderr.replace("\r\n", "\n").removesuffix("\n")}
 
 
 def evidence_result(selection: dict, case: dict) -> dict:
