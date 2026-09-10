@@ -261,3 +261,9 @@ frontier endpoint. Report failures and fallback rate, not only answered cases.
 Integrate only once measured gains survive the whole host operation. Expensive or
 destructive actions retain the host's permission checks; model output never grants
 authorization. Keep full raw results retrievable when a compact packet is insufficient.
+
+## English delegation prototype
+
+See [the English handoff contract](ENGLISH_HANDOFF.md) for the fresh-worker local
+CLI, non-quantized runtime, configurable budgets and verification boundaries.
+This is separate from the earlier read-only inspection adapter.
