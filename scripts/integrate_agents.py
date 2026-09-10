@@ -1,4 +1,4 @@
-"""Integrate a locally verified, CI-green owner PR into agents; never main.
+"""Integrate a locally verified, CI-green maintainer PR into agents; never main.
 
 Run from a trusted agents checkout after inspecting the diff and completing the
 real user-operation check. No PR code is downloaded or executed by this tool.
@@ -9,7 +9,7 @@ import re
 import subprocess
 
 REPO = "Noisemaker111/shell-forensics"
-OWNER = "Noisemaker111"
+MAINTAINER_PERMISSIONS = {"write", "maintain", "admin"}
 
 
 def gh(*args):
@@ -17,11 +17,17 @@ def gh(*args):
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
+def require_maintainer(login):
+    permission = gh("api", f"repos/{REPO}/collaborators/{login}/permission")["permission"]
+    if permission not in MAINTAINER_PERMISSIONS:
+        raise ValueError(f"{login} does not have repository write/maintain/admin permission")
+
+
 def eligible(pr, verified_head):
     if pr["baseRefName"] != "agents":
-        raise ValueError("Only agents PRs may be integrated; main needs Jon's explicit batch approval")
-    if pr["state"] != "OPEN" or pr["isDraft"] or pr["isCrossRepository"] or pr["author"]["login"].lower() != OWNER.lower():
-        raise ValueError("Require an open, ready, same-repository owner PR")
+        raise ValueError("Only agents PRs may be integrated; only Jon may perform the main merge")
+    if pr["state"] != "OPEN" or pr["isDraft"] or pr["isCrossRepository"]:
+        raise ValueError("Require an open, ready, same-repository maintainer PR")
     if pr["headRefOid"] != verified_head:
         raise ValueError("Head changed or was not locally verified; recheck the actual user operation")
     if pr["mergeable"] != "MERGEABLE" or pr["mergeStateStatus"] != "CLEAN":
@@ -44,6 +50,8 @@ def main():
     fields = "state,isDraft,isCrossRepository,author,baseRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup"
     pr = gh("pr", "view", str(args.pr), "--repo", REPO, "--json", fields)
     checks = eligible(pr, args.verified_head)
+    require_maintainer(pr["author"]["login"])
+    require_maintainer(gh("api", "user")["login"])
     for check in checks:
         match = re.fullmatch(r"https://github\.com/Noisemaker111/shell-forensics/actions/runs/(\d+)/job/\d+", check.get("detailsUrl", ""))
         if not match:
@@ -62,7 +70,10 @@ def main():
     receipt = gh("pr", "view", str(args.pr), "--repo", REPO, "--json", "state,baseRefName,mergeCommit,url")
     if receipt["state"] != "MERGED" or receipt["baseRefName"] != "agents":
         raise RuntimeError("Merge receipt did not confirm agents integration")
-    print(json.dumps(receipt))
+    print(json.dumps(receipt), flush=True)
+    # Prepare the human's next release batch; this helper never merges main.
+    from prepare_release import prepare
+    print(json.dumps(prepare(receipt["mergeCommit"]["oid"])))
 
 
 if __name__ == "__main__":
