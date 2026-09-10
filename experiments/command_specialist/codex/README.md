@@ -86,3 +86,51 @@ its internal Python actions do not inherit all native shell resource checks.
 It is not general arbitrary-shell delegation or the actual PTY recorder workload.
 The old OpenCode2 inspection adapter is unrelated. The local 1.5B specialist can
 fail; keep those results and frontier recovery cost visible.
+
+
+## Ten-stage continuous session
+
+Run `ten_step.py run --arm baseline`, then `--arm chained`, then `--arm grouped`
+from the repository root with the MCP-enabled Python environment. Never run the
+arms concurrently. `prepare` creates a fixture and prompt for manual use in a new
+Codex chat instead. The same ten-stage synthetic incident packet covers inventory,
+logs, configuration differences, tests, changed paths, command durations, failure
+details, a combined summary and a SHA-256 manifest. Later stages consume earlier
+outputs. No private transcript text is used in fixture data.
+
+Baseline may batch all work in one script and choose its own native call count.
+Chained requests ten serial English handoffs, each with a new local process and
+history. Grouped requests two handoffs of five stages. This tests ten mechanical
+steps known at the start of one session; it does not force ten frontier decisions
+or simulate discoveries that were unavailable in the original prompt.
+
+All arms get the installed interpreter path. The runner preserves ordinary host
+startup, instructions, tool discovery and approval costs. The current loop uses
+the nonquantized FP16 specialist, not a new model or trained adapter. Each local
+worker has its existing action/time limits. Failures are retained without silent
+native fallback. A success marker alone is insufficient: the external evaluator
+reopens every saved JSON and checks the content and manifest, then reruns the
+saved scripts on changed inputs in a separate directory. All twenty checks, input
+integrity, expected handoff count, and local completion must pass. External
+assessment is outside the timed chat. These scripts are trusted local code, not
+sandboxed by the harness.
+
+Compare saved runs with:
+
+```
+python experiments/command_specialist/codex/compare_ten.py BASELINE/summary.json CHAINED/summary.json GROUPED/summary.json --out work/ten-stage-comparison.json
+```
+
+Keep each summary beside its original run.json and fixture.json. Savings require
+successful runs with matching source hashes, input hashes, model and effort.
+Token usage separates cached and uncached frontier input, frontier output, and
+local model input/output. It does not estimate actual charges. event-times.jsonl
+records arrival timestamps for raw events; the union of started/completed tool
+spans avoids double counting overlap. Time outside those spans includes startup
+and frontier work and must not be labeled entirely model inference.
+
+Subtracting observed serial local worker time gives a conditional instant-worker
+floor with every other cost unchanged. It is not an achievable optimum or a
+ceiling on redesigned workflows. Failed arms receive no savings claim. Repeat
+successful matched AB/BA series before claiming typical savings; one run per arm
+is a pilot that can reveal failure modes and batching effects.

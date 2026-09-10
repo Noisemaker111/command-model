@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import threading
 import uuid
 
 HERE = Path(__file__).resolve().parent
@@ -77,10 +78,10 @@ def codex_command():
     return [path]
 
 
-def run(directory, model, effort):
+def run(directory, model, effort, *, collector=None, timeout=600, extra_sources=()):
     if (directory / 'events.jsonl').exists():
         raise ValueError('Run evidence already exists; prepare a fresh workspace')
-    sources = [HERE / 'server.py', HERE / 'bench.py', HERE.parent / 'delegate.py']
+    sources = [HERE / 'server.py', HERE / 'bench.py', HERE.parent / 'delegate.py', *extra_sources]
     source_hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     root = directory / 'workspace'
     command = codex_command() + ['exec', '--json', '--approve-for-me', '-C', str(root),
@@ -90,18 +91,30 @@ def run(directory, model, effort):
     start = time.perf_counter()
     timed_out = False
     with (directory / 'events.jsonl').open('wb') as output, (directory / 'stderr.txt').open('wb') as errors, (directory / 'prompt.txt').open('rb') as prompt:
-        process = subprocess.Popen(command, stdin=prompt, stdout=output, stderr=errors)
+        process = subprocess.Popen(command, stdin=prompt, stdout=subprocess.PIPE, stderr=errors)
+        def capture():
+            with (directory / 'event-times.jsonl').open('w', encoding='utf-8') as times:
+                for index, line in enumerate(iter(process.stdout.readline, b'')):
+                    output.write(line)
+                    output.flush()
+                    times.write(json.dumps({'line': index, 'elapsed_ms': round((time.perf_counter()-start)*1000)})+'\n')
+                    times.flush()
+        reader = threading.Thread(target=capture, daemon=True)
+        reader.start()
         try:
-            process.wait(timeout=600)
+            process.wait(timeout=timeout)
         except (subprocess.TimeoutExpired, KeyboardInterrupt):
             timed_out = True
             subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
             process.wait(timeout=15)
+        reader.join(timeout=15)
+        if reader.is_alive():
+            raise RuntimeError('Event capture did not close after Codex exit')
     write_json(directory / 'run.json', {'source_sha256': source_hashes, 'source_changed_during_run': any(hashlib.sha256(p.read_bytes()).hexdigest() != source_hashes[p.name] for p in sources), 'model': model, 'effort': effort, 'exit_code': process.returncode, 'timed_out_or_cancelled': timed_out,
         'wall_ms': round((time.perf_counter()-start)*1000), 'command': command,
         'billing': 'Existing Codex login; tokens are usage, not a dollar charge estimate'})
-    return collect(directory)
+    return (collector or collect)(directory)
 
 
 def collect(directory):
