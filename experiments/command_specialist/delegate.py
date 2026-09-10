@@ -221,6 +221,7 @@ def delegate(task, root, artifacts, *, max_actions=12, seconds=300, output_limit
                         generation_context = (
                             task['task'] + '\nRuntime/API context: ' + str(task.get('context', '')) +
                             '\nConstraints: ' + str(task.get('constraints', [])) +
+                            '\nRequired stdout exactly (JSON string): ' + json.dumps(task['completion']['stdout']) +
                             '\nTarget binding: ' + name + ' = ' + str(path) +
                             '\nCurrent saved source:\n' + (path.read_text(encoding='utf-8') if path.exists() else '(missing)') +
                             '\nActual last execution result: ' + json.dumps(latest.get(name, {}), ensure_ascii=False) +

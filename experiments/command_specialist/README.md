@@ -267,3 +267,6 @@ authorization. Keep full raw results retrievable when a compact packet is insuff
 See [the English handoff contract](ENGLISH_HANDOFF.md) for the fresh-worker local
 CLI, non-quantized runtime, configurable budgets and verification boundaries.
 This is separate from the earlier read-only inspection adapter.
+
+For the separately configured Codex hookup and paired normal-shell comparison,
+see [Codex harness](codex/README.md) and its qualified [observations](codex/RESULTS.md).
