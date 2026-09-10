@@ -1,4 +1,12 @@
-# Local command specialist pilot
+# Command specialist
+
+Start with [project purpose and evidence](PURPOSE.md) for the current goal,
+frontier/worker responsibilities, training scope and next experiment. This page
+documents the original inspection pilot. The broader [English runtime](ENGLISH_HANDOFF.md)
+and [real Codex hookup](codex/README.md) are separate prototypes; their code-writing
+behavior must not be described as a capability this pilot adapter was trained for.
+
+## Original inspection pilot
 
 This experiment tests whether a small local model can translate short inspection
 requests into commands and select useful evidence from output. It is a Windows
@@ -23,7 +31,8 @@ The product goal is an agent-to-specialist handoff: the frontier agent supplies
 intent and known context, the local specialist handles supported mechanical work,
 and the agent receives compact faithful evidence with a retrievable raw result.
 These five inspection operations are a capability pilot, not the complete command
-runner product or a new chat interface. Automatic host integration remains pending.
+runner product or a new chat interface. An explicit Codex MCP English prototype
+now exists; automatic interception of native shell work remains unimplemented.
 
 Exact paths can now be supplied separately from task wording. The runner binds them
 to request-local references for prediction and restores the original paths before

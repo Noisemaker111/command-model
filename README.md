@@ -61,13 +61,18 @@ These are regex heuristics checked by hand on samples. Expect a few percent nois
 
 ## Files
 
-- `SKILL.md` — instructions the agent follows
-- `reference.md` — baseline numbers and verified harness facts from the first run
+- `SKILL.md` â€” instructions the agent follows
+- `reference.md` â€” baseline numbers and verified harness facts from the first run
 - `scripts/extract.py`, `analyze.py`, `scratch.py`, `build.py`, `template.html`
 
 MIT license.
 
 ## Local command model experiment
+
+The current [command-specialist direction](experiments/command_specialist/PURPOSE.md)
+is English delegation of bounded command/cell work from a frontier agent to a
+fresh local worker, returning verified evidence. It distinguishes the narrow
+trained inspection pilot from the broader runtime and its measured host results.
 
 The optional [command specialist pilot](experiments/command_specialist/README.md)
 audits training-data quality, benchmarks small local models on bounded PowerShell
