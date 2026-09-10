@@ -69,18 +69,24 @@ class BindingTests(unittest.TestCase):
                            ({'lines':[2,3]}, {'inference_wall_ms':1})]
             with patch('run.predict', side_effect=predictions) as predict:
                 packet = inspect_request(root, 'Read last 3 lines of {{log}}.', targets={'log':name},
-                                         evidence_request='errors and summary', backend='native', artifacts=root/'runs')
+                                         evidence_request='errors and summary', backend='native', artifacts=root/'runs',
+                                         num_ctx=8192, num_predict=2048)
             self.assertEqual(predict.call_args_list[0].args[2]['request'], 'Read last 3 lines of "file_1".')
             self.assertEqual(packet['plan']['path'], name)
             self.assertIn(name, packet['request'])
             self.assertEqual(packet['evidence'], ['ERROR preserve this', 'SUMMARY failed'])
             self.assertEqual(packet['source_lines'], [2,3])
+            self.assertTrue(all(call.kwargs == {'num_ctx':8192, 'num_predict':2048}
+                                for call in predict.call_args_list))
             self.assertEqual(packet['exit_code'], 0)
             self.assertNotIn('binding_trace', packet)
             saved = json.loads(Path(packet['raw_result']).read_text(encoding='utf-8'))
             self.assertEqual(saved['plan']['path'], name)
             self.assertEqual(saved['binding_trace']['references'], {'file_1':name})
             self.assertEqual(saved['result']['stdout'], content.rstrip('\n'))
+            self.assertEqual(saved['selection'], {'lines':[2,3]})
+            self.assertEqual(saved['runtime']['num_predict'], 2048)
+            self.assertEqual(saved['packet']['evidence'], packet['evidence'])
 
     def test_invalid_reference_never_executes_and_deleted_target_is_revalidated(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -91,7 +97,7 @@ class BindingTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'unknown file reference'):
                     inspect_request(root, 'Read {{log}}.', targets={'log':'a.txt'}, artifacts=root/'runs')
                 execute.assert_not_called()
-            def removed(*args):
+            def removed(*args, **kwargs):
                 target.unlink()
                 return {'op':'read_head','path':'file_1','value':'','limit':1}, {}
             with patch('run.predict', side_effect=removed):

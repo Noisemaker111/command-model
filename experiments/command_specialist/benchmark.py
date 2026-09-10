@@ -22,17 +22,30 @@ def post(base: str, path: str, body: dict) -> dict:
         return json.load(response)
 
 
-def predict(base: str, model: str, case: dict) -> tuple[dict, dict]:
+class PredictionError(ValueError):
+    def __init__(self, message, timing):
+        super().__init__(message)
+        self.timing = timing
+
+
+def predict(base: str, model: str, case: dict, *, num_ctx=4096, num_predict=160) -> tuple[dict, dict]:
     start = time.perf_counter()
     response = post(base, "/api/chat", {
         "model": model, "messages": messages(case), "stream": False,
         "format": prediction_schema(case),
         "think": False, "keep_alive": "5m",
-        "options": {"temperature": 0, "seed": 20260909, "num_ctx": 4096, "num_predict": 160},
+        "options": {"temperature": 0, "seed": 20260909, "num_ctx": num_ctx, "num_predict": num_predict},
     })
     timing = {"inference_wall_ms": (time.perf_counter() - start) * 1000}
     timing.update({key: response.get(key) for key in ["total_duration", "load_duration", "prompt_eval_count", "prompt_eval_duration", "eval_count", "eval_duration"]})
-    return json.loads(response["message"]["content"]), timing
+    timing["done_reason"] = response.get("done_reason")
+    timing["raw_response"] = response["message"]["content"]
+    if response.get("done_reason") == "length":
+        raise PredictionError("Model output limit reached; no prediction accepted", timing)
+    try:
+        return json.loads(response["message"]["content"]), timing
+    except (ValueError, TypeError) as error:
+        raise PredictionError(str(error), timing) from error
 
 
 def equivalent_output(case: dict, actual: str, expected: str) -> bool:
