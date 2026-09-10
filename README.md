@@ -1,81 +1,81 @@
-# Shell Forensics
+# Command Model
 
-A Claude Code skill that reads the transcripts your coding agents already keep on disk (Codex, Claude Code, OpenCode, Cursor), pulls out every shell command they ran, and builds a report: which model does everything through bash or PowerShell or a JavaScript cell, what the shell is used for, how it fails, and what actually fixed it. The report is a deck of screenshot-sized cards, each with a ready-to-post summary.
+A small local model and execution loop for command/cell work delegated by a
+frontier agent. The frontier supplies English intent and known context; one fresh
+local worker performs bounded mechanical work, verifies the result and returns
+compact evidence. "Our model" and "the model we are building" refer to this project.
 
-Example output from the first machine it ran on: 38,176 commands, 874 sessions, 48 model IDs. Findings included a 30% failure rate when the model typed POSIX into a PowerShell host versus 11% when the dialect matched, `| head` typed into PowerShell as the single most common concrete failure, `python -c` one-liners failing at 28% versus 10% for the same Python fed through a heredoc, and GPT-5.6 models printing only `r.output` in Codex cells 92% of the time so that non-zero exit codes never reached the transcript. See `reference.md` for the baseline numbers.
+Start with [purpose and evidence](experiments/command_model/PURPOSE.md),
+[agent instructions](AGENTS.md), and the [Codex handoff prototype](experiments/command_model/codex/README.md).
+The original inspection adapter and later execution experiments have different
+scopes; the purpose document preserves what each actually demonstrated.
 
-## Install
+## Components
 
-Claude Code:
+| Component | Responsibility |
+| --- | --- |
+| Shell Gatherer | Collect recorded shell commands, results and provenance |
+| Mining and labeling pipeline | Normalize observations, recover useful candidates and assign supported labels |
+| Execution verification and datasets | Check candidate behavior and save examples with frozen held-out partitions |
+| Model training | Train for the actual delegation protocol, preserving original adapters |
+| Local execution loop and frontier evaluation | Execute grounded English jobs and measure verified whole-operation accuracy, time and tokens |
 
-```
-git clone https://github.com/Noisemaker111/shell-forensics ~/.claude/skills/shell-forensics
-```
+The gatherer does not certify training examples. See the
+[data pipeline](experiments/command_model/DATA_PIPELINE.md) and
+[measured data results](experiments/command_model/DATA_RESULTS.md).
 
-Then in any Claude Code session:
+## Repository and local work
 
-```
-/shell-forensics
-```
-
-Codex reads skills from `~/.codex/skills`, so the same clone works there:
-
-```
-git clone https://github.com/Noisemaker111/shell-forensics ~/.codex/skills/shell-forensics
-```
-
-You can also run the scripts by hand without any agent. Python 3.10+, standard library only:
-
-```
-python scripts/extract.py  work      # records.jsonl, toolcounts.json
-python scripts/analyze.py  work      # records_annotated.jsonl, summary.json, prints the headline tables
-python scripts/scratch.py  work      # scratch.json: scripts written to disk per model
-python scripts/build.py    work      # shell-forensics.html, page-data.json
+```powershell
+git clone https://github.com/Noisemaker111/command-model
+cd command-model
 ```
 
-Open `work/shell-forensics.html` in a browser. Add `--no-gallery` to `build.py` for a page you can share: the gallery embeds real commands with real paths from your machine.
+Follow [DEVELOPMENT.md](DEVELOPMENT.md) for owned worktrees, checks and integration.
+The model source is in experiments/command_model. Existing shell-specialist model
+aliases, frozen dataset seeds and old work/command-specialist data paths retain
+their identities for reproducibility; this rename does not retrain weights.
 
-## What it reads
+## Shell Gatherer
 
-| Harness | Path | Parsed |
-|---|---|---|
-| Codex CLI and desktop | `~/.codex/sessions/**/*.jsonl` | `exec` JS cells; each `tools.exec_command` / `shell_command` inside is one record |
-| Claude Code | `~/.claude/projects/**/*.jsonl` | `Bash` and `PowerShell` tool calls joined to their results |
-| OpenCode | `~/.local/share/opencode/opencode.db` | `bash`, `shell`, `oc_bash` and `execute` tool parts, v1 and v2 stores |
-| Cursor CLI | `~/.cursor/chats/*/*/store.db` | `Shell` tool calls joined to results |
+The self-contained skill is [skills/shell-gatherer](skills/shell-gatherer/SKILL.md).
+Copy that directory to ~/.claude/skills/shell-gatherer or
+~/.codex/skills/shell-gatherer to install it. In a fresh session request
+"Use Shell Gatherer to collect my local shell-command observations."
 
-Read-only. Nothing leaves the machine unless you publish the page.
+To run directly with Python 3.10+ and no dependencies:
 
-## What the classifiers do
+```powershell
+New-Item -ItemType Directory -Force work
+python skills/shell-gatherer/scripts/gather.py work
+```
 
-Each command is tagged with the dialect the model wrote (POSIX, PowerShell, cmd, neutral, mixed), the host shell that ran it, its job (git, read, search, build/test, and so on), any embedded program (`python -c`, heredoc, `node -e`, here-string, jq, nested pwsh), the failure cause parsed from the output, and whether the harness reported success while the output contained a hard error. For every failure it also looks at the next shell command in the session to see what the model tried and whether that worked.
+This writes records.jsonl and toolcounts.json. The old scripts/extract.py command
+forwards to the same implementation. Recorded output is capped at 700 characters;
+full-transcript ingestion is a separate pipeline. No collected commands execute.
 
-These are regex heuristics checked by hand on samples. Expect a few percent noise per cell. The page says so.
+## Downstream shell analysis
 
-## Caveats worth repeating
+These scripts consume observations; they are not part of gathering:
 
-- Harness design dominates. Codex has no read or edit tools, so its shell share is structural. Compare models within one harness.
-- Instructions leak in. Claude Code's auto mode tells the model to work through Bash; the page marks those families.
-- Host shells differ per harness and per OS, so failure rates across harnesses are not comparable.
-- One user, one machine, one task mix per run. Post your numbers and the picture gets better.
+```powershell
+python scripts/analyze.py work
+python scripts/scratch.py work
+python scripts/build.py work --no-gallery
+```
 
-## Files
+The report is work/shell-analysis.html with page-data.json. Analysis uses heuristic
+classifications, not verified task-success labels. The optional gallery exposes
+recorded commands and paths; keep private data local unless publication is authorized.
+[Historical observations](reference.md) preserve the original analysis context.
 
-- `SKILL.md` — instructions the agent follows
-- `reference.md` — baseline numbers and verified harness facts from the first run
-- `scripts/extract.py`, `analyze.py`, `scratch.py`, `build.py`, `template.html`
+## Naming and compatibility
+
+The repository was formerly shell-forensics and the model experiment was called
+command specialist. Current names are **Command Model** (project) and **Shell
+Gatherer** (collection). Historical artifacts and installed model aliases may keep
+old names. On the development machine, the former repository folder is a
+compatibility junction to command-model so existing worktrees, environments and
+saved absolute paths remain accessible. New work should use the canonical name.
 
 MIT license.
-
-## Local command model experiment
-
-The current [command-specialist direction](experiments/command_specialist/PURPOSE.md)
-is English delegation of bounded command/cell work from a frontier agent to a
-fresh local worker, returning verified evidence. It distinguishes the narrow
-trained inspection pilot from the broader runtime and its measured host results.
-
-The optional [command specialist pilot](experiments/command_specialist/README.md)
-audits training-data quality, benchmarks small local models on bounded PowerShell
-inspection and evidence-selection tasks, and trains a local LoRA adapter. Its
-synthetic capability scores are separate from this repository's observed transcript
-statistics and do not establish superiority to frontier models.

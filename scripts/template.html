@@ -1,4 +1,4 @@
-<title>Shell Forensics</title>
+<title>Shell Analysis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -164,7 +164,7 @@ footer{padding:28px 0 50px;color:var(--ink-3);font-size:12.5px;border-top:1px so
 
 <header class="mast"><div class="wrap">
   <div class="eyebrow" id="mast-eyebrow"></div>
-  <h1 style="margin-top:10px">Shell Forensics</h1>
+  <h1 style="margin-top:10px">Shell Analysis</h1>
   <p class="thesis">Every shell command Codex, Claude Code, OpenCode and Cursor ran on this machine this summer, from their own logs. Each card below is sized to screenshot on its own and carries the post that goes with it.</p>
   <div class="readout" id="readout"></div>
 </div></header>
@@ -283,9 +283,9 @@ const ORDER = ['lead','share','corpus','jobs','dialect','head','embed','form','s
 let CARD = 0;
 function card(mount, id, tweetKey, bodyEl, foot){ CARD++; const s = TW[tweetKey];
   const c = h('div',{class:'card', id:'card-'+id},
-    h('div',{class:'top'}, h('span',{class:'id'}, `card ${String(CARD).padStart(2,'0')}`), h('span',{}, 'Shell Forensics'), h('span',{class:'sp'}, `${T.first} → ${T.last} · local transcripts · n=${fmt(T.records)}`)),
+    h('div',{class:'top'}, h('span',{class:'id'}, `card ${String(CARD).padStart(2,'0')}`), h('span',{}, 'Shell Analysis'), h('span',{class:'sp'}, `${T.first} → ${T.last} · local transcripts · n=${fmt(T.records)}`)),
     h('div',{class:'tweet'}, h('div',{}, h('p',{}, s), h('div',{class:'ct'+(s.length>280?' over':'')}, `${s.length} chars`)), h('button',{class:'copy', onclick:()=>copyText(s)}, 'Copy post')),
-    h('div',{class:'body'}, bodyEl, foot? h('div',{class:'ft'}, h('span',{html:foot}), h('span',{}, 'shell forensics · one machine, four harnesses')) : null));
+    h('div',{class:'body'}, bodyEl, foot? h('div',{class:'ft'}, h('span',{html:foot}), h('span',{}, 'shell analysis · one machine, four harnesses')) : null));
   $(mount).append(c); return c; }
 
 /* ---------- masthead ---------- */

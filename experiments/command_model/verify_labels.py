@@ -148,7 +148,7 @@ def export_train(frozen, out, verification, read_recovery=None):
               "used_partitions": ["train"], "verifier_cases": verification["passed"],
               "sft_sha256": hashlib.sha256((out / "sft.jsonl").read_bytes()).hexdigest(),
               "original_task_success_labels": 0,
-              "scope": "Supplemental synthetic read examples; insufficient alone for a broad command specialist."}
+              "scope": "Supplemental synthetic read examples; insufficient alone for a broad Command Model."}
     atomic_json(out / "export.json", report)
     return report
 

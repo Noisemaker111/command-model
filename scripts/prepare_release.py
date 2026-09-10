@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 
-REPO = "Noisemaker111/shell-forensics"
+REPO = "Noisemaker111/command-model"
 
 
 def command(*args):

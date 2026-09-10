@@ -23,14 +23,14 @@ jobs:
         with:
           python-version: '3.12'
       - name: Validate syntax
-        run: python -m compileall -q scripts experiments/command_specialist
+        run: python -m compileall -q scripts skills experiments/command_model
       - name: Path binding and saved evidence invariants
-        run: python -m unittest discover -s experiments/command_specialist -p test_bindings.py -v
+        run: python -m unittest discover -s experiments/command_model -p test_bindings.py -v
       - name: Native and PowerShell contract invariants
-        run: python -m unittest discover -s experiments/command_specialist -p test_contract.py -v
+        run: python -m unittest discover -s experiments/command_model -p test_contract.py -v
       - name: English delegation evidence and authorization invariants
-        run: python -m unittest discover -s experiments/command_specialist -p test_delegate.py -v
+        run: python -m unittest discover -s experiments/command_model -p test_delegate.py -v
       - name: Frozen main candidate and patch notes
         run: python scripts/check_release.py
       - name: Codex comparison evidence invariants
-        run: python -m unittest discover -s experiments/command_specialist/codex -p test_compare.py -v
+        run: python -m unittest discover -s experiments/command_model/codex -p test_compare.py -v

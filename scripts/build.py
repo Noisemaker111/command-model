@@ -185,7 +185,7 @@ data['js_only'] = S['examples']['js_only'][:6]
 tpl = open(os.path.join(SCRIPT, 'template.html'), encoding='utf-8').read()
 js = json.dumps(data, ensure_ascii=False, default=str).replace('</', '<\\/').replace('�', '?')
 html = tpl.replace('__DATA__', js)
-open(os.path.join(OUT_DIR, 'shell-forensics.html'), 'w', encoding='utf-8').write(html)
+open(os.path.join(OUT_DIR, 'shell-analysis.html'), 'w', encoding='utf-8').write(html)
 json.dump(data, open(os.path.join(OUT_DIR, 'page-data.json'), 'w', encoding='utf-8'), ensure_ascii=False, default=str)
 print('gallery', len(gallery), 'html bytes', len(html.encode('utf-8')))
 print('families', [(f['fam'], f['n']) for f in data['families']])

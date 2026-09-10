@@ -29,7 +29,7 @@ def prepare(out, arm):
     if arm == 'baseline':
         guidance += 'Use normal native shell/file tools and build_packet.py. Batch work as efficiently as you judge useful; there is no required number of shell calls. Do not use a local model.\n'
     else:
-        guidance += ('Use command_specialist.run_python_task with English intent, exact script target, relevant context and exact expected stdout. '
+        guidance += ('Use command_model.run_python_task with English intent, exact script target, relevant context and exact expected stdout. '
             'Do not write source or command sequences yourself. Call serially; each call is a fresh worker. '
             'After a failure, preserve it and continue later requested groups when possible; do not switch to native execution or silently retry in another worker.\n')
         guidance += ('Make exactly ten handoffs, one per numbered stage.\n' if arm == 'chained' else 'Make exactly two handoffs: stages 1–5 together, then stages 6–10 together.\n')
@@ -48,7 +48,7 @@ def prepare(out, arm):
     (directory / 'prompt.txt').write_text(task, encoding='utf-8')
     if arm != 'baseline':
         (root / '.codex').mkdir()
-        (root / '.codex/config.toml').write_text('[mcp_servers.command_specialist]\ncommand = '+json.dumps(sys.executable)+'\nargs = '+json.dumps([str(HERE/'server.py'),'--root',str(root),'--artifacts',str(directory/'local'),'--allow-execute'])+'\nrequired = true\nstartup_timeout_sec = 30\ntool_timeout_sec = 330\ndefault_tools_approval_mode = "prompt"\n', encoding='utf-8')
+        (root / '.codex/config.toml').write_text('[mcp_servers.command_model]\ncommand = '+json.dumps(sys.executable)+'\nargs = '+json.dumps([str(HERE/'server.py'),'--root',str(root),'--artifacts',str(directory/'local'),'--allow-execute'])+'\nrequired = true\nstartup_timeout_sec = 30\ntool_timeout_sec = 330\ndefault_tools_approval_mode = "prompt"\n', encoding='utf-8')
     write_json(directory/'fixture.json', {'case':'ten-stage-incident','arm':arm,'scripts':scripts,
         'input_hashes':{p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'inputs').rglob('*') if p.is_file()}})
     return directory
@@ -111,7 +111,7 @@ def collect(directory):
             'output_tokens':sum(c['response'].get('eval_count',0) for c in r['model_calls']),
             'failed_executions':sum(a.get('result',{}).get('exit_code',0)!=0 for a in r['actions'])})
     expected_calls={'baseline':0,'chained':10,'grouped':2}[fixture['arm']]
-    mcp=[i for i in completed if i.get('type')=='mcp_tool_call' and i.get('server')=='command_specialist']
+    mcp=[i for i in completed if i.get('type')=='mcp_tool_call' and i.get('server')=='command_model']
     inputs_unchanged=all((root/name).exists() and hashlib.sha256((root/name).read_bytes()).hexdigest()==value for name,value in fixture['input_hashes'].items())
     success=bool(turns and run_info['exit_code']==0 and not run_info['source_changed_during_run'] and inputs_unchanged
         and all(c['passed'] for c in checks) and all(c['passed'] for c in alternate['checks'])

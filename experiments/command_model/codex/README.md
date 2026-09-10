@@ -14,13 +14,13 @@ two local models. It is a Windows, trusted-workspace Python-task prototype.
 Install into an isolated Python 3.12 environment:
 
 ```
-python -m pip install -r experiments/command_specialist/codex/requirements.txt
-python experiments/command_specialist/codex/bench.py prepare --case csv --arm delegated
+python -m pip install -r experiments/command_model/codex/requirements.txt
+python experiments/command_model/codex/bench.py prepare --case csv --arm delegated
 ```
 
 Open the printed directory's `workspace` folder as a project in Codex, start a
 fresh chat, and send the text from the adjacent `prompt.txt`. The project-local
-`.codex/config.toml` connects `command_specialist.run_python_task`. Trust that
+`.codex/config.toml` connects `command_model.run_python_task`. Trust that
 specific project when Codex requests it. The tool executes generated Python with
 the account's privileges, so approve only the intended trusted fixture operation.
 No global configuration is edited. Desktop tool loading must be verified in the
@@ -39,8 +39,8 @@ may remain marked running and must never be treated as success.
 Run each arm separately (never concurrently) using the same model and effort:
 
 ```
-python experiments/command_specialist/codex/bench.py run --case csv --arm baseline --model gpt-6-astra --effort low
-python experiments/command_specialist/codex/bench.py run --case csv --arm delegated --model gpt-6-astra --effort low
+python experiments/command_model/codex/bench.py run --case csv --arm baseline --model gpt-6-astra --effort low
+python experiments/command_model/codex/bench.py run --case csv --arm delegated --model gpt-6-astra --effort low
 ```
 
 `repair` is a second case with an actual broken program. Each run creates an
@@ -60,7 +60,7 @@ must not be assigned CLI token/timing figures.
 Create a comparison from the two saved summaries:
 
 ```
-python experiments/command_specialist/codex/compare.py BASELINE/summary.json DELEGATED/summary.json --out work/comparison.json
+python experiments/command_model/codex/compare.py BASELINE/summary.json DELEGATED/summary.json --out work/comparison.json
 ```
 
 The runner checks the saved program on the original input and an alternate input,
@@ -123,7 +123,7 @@ sandboxed by the harness.
 Compare saved runs with:
 
 ```
-python experiments/command_specialist/codex/compare_ten.py BASELINE/summary.json CHAINED/summary.json GROUPED/summary.json --out work/ten-stage-comparison.json
+python experiments/command_model/codex/compare_ten.py BASELINE/summary.json CHAINED/summary.json GROUPED/summary.json --out work/ten-stage-comparison.json
 ```
 
 Keep each summary beside its original run.json and fixture.json. Savings require

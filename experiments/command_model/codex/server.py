@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--allow-execute', action='store_true')
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
-    server = FastMCP('command-specialist', log_level='WARNING')
+    server = FastMCP('command-model', log_level='WARNING')
     lock = asyncio.Lock()
 
     @server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,

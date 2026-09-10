@@ -1,4 +1,9 @@
-# Command specialist
+# Command Model
+
+"Our model", "the model we are building", and "Command Model" refer to this
+project. Shell Gatherer is only the collection component in skills/shell-gatherer.
+Mining, labeling, execution verification, datasets and training are downstream
+steps. Do not describe gathered observations as verified training examples.
 
 Build a small, fast local model and execution loop that does command/cell work for
 frontier agents. Accept English intent and known context, perform the mechanical
@@ -6,7 +11,7 @@ work, inspect real outcomes, repair ordinary failures, and return compact verifi
 evidence with retrievable raw output. Each delegation gets a fresh, bounded worker
 lifecycle. A generated program or claimed success is not completion.
 
-Read [project purpose and evidence](experiments/command_specialist/PURPOSE.md)
+Read [project purpose and evidence](experiments/command_model/PURPOSE.md)
 before choosing the next experiment. The frontier owns reasoning and delegation;
 the worker owns bounded mechanical implementation and verified evidence. The
 486-example inspection/evidence adapter is not an English code-execution-trained

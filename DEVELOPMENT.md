@@ -15,9 +15,9 @@ existing PRs for the same work. Run commands from the repository root with Pytho
 3.12. Required checks are:
 
 ```
-python -m compileall -q scripts experiments/command_specialist
-python -m unittest discover -s experiments/command_specialist -p test_bindings.py -v
-python -m unittest discover -s experiments/command_specialist -p test_contract.py -v
+python -m compileall -q scripts skills experiments/command_model
+python -m unittest discover -s experiments/command_model -p test_bindings.py -v
+python -m unittest discover -s experiments/command_model -p test_contract.py -v
 ```
 
 Also verify the affected user operation through the public CLI and reopen its saved
