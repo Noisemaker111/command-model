@@ -17,6 +17,63 @@ literals, and executes the command. The model cannot submit arbitrary shell code
 For evidence extraction it chooses source line numbers; the runtime returns the
 original text and preserves exit code and truncation independently.
 
+## Intended handoff
+
+The product goal is an agent-to-specialist handoff: the frontier agent supplies
+intent and known context, the local specialist handles supported mechanical work,
+and the agent receives compact faithful evidence with a retrievable raw result.
+These five inspection operations are a capability pilot, not the complete command
+runner product or a new chat interface. Automatic host integration remains pending.
+
+Exact paths can now be supplied separately from task wording. The runner binds them
+to request-local references for prediction and restores the original paths before
+validation, execution and presentation. Both the returned `request` and `plan.path`
+are readable; internal references appear only in the private raw artifact's audit
+trace. Output text is never rewritten to substitute references.
+
+A caller can hand off a UTF-8 JSON task file:
+
+```json
+{
+  "request": "Read the last 5 lines of {{build}}.",
+  "targets": {"build": "logs/build [draft]'s.log"},
+  "evidence_request": "Return every error and the final summary."
+}
+```
+
+```powershell
+python experiments/command_specialist/run.py --root '<directory>' --task-file task.json --backend native
+```
+
+Or use the Python `run.inspect_request(root, request, targets=...)` boundary. For a
+small CLI request, `--target 'build=logs/build.log' --request 'Read the last 5 lines
+of {{build}}.'` supplies the same binding. Existing unbound `--request` calls retain
+their original behavior for compatibility and comparison.
+
+The caller supplies the exact target from its existing context, file selection or
+discovery result. This layer does not infer an unknown filename from a description,
+crawl the workspace, or install a host-wide file registry. Bindings live for one
+request and must not be cached or reused independently of that request. Up to 16
+candidate files/directories are allowed; their paths must exist inside the chosen
+root. The model's path field is constrained to those references, and resolution
+rejects any unknown reference. The ordinary executor revalidates the actual path.
+
+The trained adapter's existing plan shape is retained: internally its `path` field
+holds a short reference such as `file_1`; externally it holds the real path. No
+filename-specific retraining is required. Literal search strings and JSON keys
+still use the existing value field; binding those is a separate extension.
+
+See [binding measurements](BINDING_RESULTS.md). Run the paired live-model experiment
+with new filenames and two reference candidates per task:
+
+```powershell
+python experiments/command_specialist/benchmark_bindings.py --out work/command-specialist/binding-trial --backend native
+```
+
+The test alternates bound/unbound order and compares executed output against an
+independent PowerShell reference. It does not consume historical development or
+final-test observations and does not prove file-discovery accuracy.
+
 ## Why this design
 
 The shell-forensics corpus exposes expensive mechanical failures: wrong dialects,
@@ -151,6 +208,10 @@ run on such a small synthetic set cannot establish reliability, frontier superio
 20x whole-operation speed, or a production deployment gate.
 
 ## Next experiment
+
+The next data-recovery and smaller-model stage is documented in
+[RECOVERY_RESULTS.md](RECOVERY_RESULTS.md), with reproduction commands in
+[DATA_PIPELINE.md](DATA_PIPELINE.md#static-recovery-and-expanded-training).
 
 Recover real request/command/result triples, retain the known environment and
 requested evidence, and label actual task outcomes. Add Bash, multi-step reads,

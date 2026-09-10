@@ -1,0 +1,7 @@
+{
+  "name": "command-transcript-parser",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test"},
+  "dependencies": {"acorn": "8.18.0"}
+}

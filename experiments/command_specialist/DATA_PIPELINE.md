@@ -111,7 +111,44 @@ supported read candidates by operation and count, and produces three synthetic
 instructions per pair. Requests and paths are generated, not recovered human
 intent. Each example keeps hashed training ancestry. The verifier establishes
 fixture operation semantics, not that a historical command fulfilled its task.
-This small supplement alone does not justify retraining a broad command model.
+This supplement alone does not justify retraining a broad command model.
+
+## Static recovery and expanded training
+
+Install the exact Acorn dependency from `experiments/command_specialist/js_parser`
+using `npm ci --ignore-scripts --no-audit --no-fund`; run `npm test` in that directory.
+Use a current Node runtime (verified with the installed Node 24.18.0 runtime). Acorn's
+[parser API](https://github.com/acornjs/acorn/tree/master/acorn) produces a JavaScript
+AST; the extractor evaluates no historical code, imports, or variable expressions.
+Literal command fields retain source spans, dynamic environment fields, and control
+context. Syntactic candidates are never labeled as observed executions.
+
+From the repository root, with a previously frozen dataset and fresh output paths:
+
+```powershell
+python experiments/command_specialist/recover_code.py --root work/command-specialist/data-v2 --frozen work/command-specialist/data-v2/frozen-review-final --out work/command-specialist/code-recovery-new
+python experiments/command_specialist/recover_reads.py --root work/command-specialist/data-v2 --frozen work/command-specialist/data-v2/frozen-review-final --code-recovery work/command-specialist/code-recovery-new --out work/command-specialist/read-recovery-new
+python experiments/command_specialist/verify_labels.py --frozen work/command-specialist/data-v2/frozen-review-final --read-recovery work/command-specialist/read-recovery-new --out work/command-specialist/verified-reads-new
+python experiments/command_specialist/verify_more_operations.py --out work/command-specialist/verified-operations-new
+python experiments/command_specialist/prepare_expanded.py --pilot work/command-specialist --verified work/command-specialist/verified-reads-new --frozen work/command-specialist/data-v2/frozen-review-final --out work/command-specialist/expanded-data-new
+```
+
+The PowerShell recovery stage uses the SDK's
+[Parser.ParseInput](https://learn.microsoft.com/en-us/dotnet/api/system.management.automation.language.parser.parseinput?view=powershellsdk-7.4.0)
+to find literal bounded `Get-Content` subcommands, including compound statements.
+Dynamic paths/counts, unsupported flags, conflicting parameters, and wildcard
+`-Path` forms retain rejection reasons. The enclosing pipeline is not executed or
+declared equivalent to a standalone read. Original paths remain in private sidecars;
+only synthetic fixture paths enter training. Snapshots may contain multiple sessions;
+the selected training session/record identities control candidate eligibility.
+
+Recovery and export artifacts carry hashes tying them to the frozen training file.
+The expanded preparer reuses only the pilot's synthetic training rows, excluding its
+older mined examples. It never reads pilot evaluation files or frozen non-training
+partition files. Do not manually add historical examples from a different split.
+Run `python -m unittest discover -s experiments/command_specialist -p 'test_*.py'`
+after installing the parser dependency. See [RECOVERY_RESULTS.md](RECOVERY_RESULTS.md)
+for measured coverage, failures, and scope.
 
 ## Efficiency and reproducibility
 

@@ -78,7 +78,7 @@ def compile_plan(plan: dict, root: Path) -> str:
         "read_head": f"Get-Content -LiteralPath {path} -Encoding UTF8 -TotalCount {n}",
         "read_tail": f"Get-Content -LiteralPath {path} -Encoding UTF8 -Tail {n}",
         "find_literal": f"Select-String -LiteralPath {path} -Encoding UTF8 -SimpleMatch -Pattern {value} | Select-Object -First {n} -ExpandProperty Line",
-        "list_files": f"Get-ChildItem -LiteralPath {path} -File -Filter {value} | Sort-Object Name | Select-Object -First {n} -ExpandProperty Name",
+        "list_files": f"Get-ChildItem -LiteralPath {path} -File | Where-Object {{ $_.Name -like {value} }} | Sort-Object Name | Select-Object -First {n} -ExpandProperty Name",
         "json_field": f"$document = Get-Content -LiteralPath {path} -Encoding UTF8 -Raw | ConvertFrom-Json; $document.PSObject.Properties[{value}].Value | ConvertTo-Json -Compress -Depth 20",
     }
     return "$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false); " + commands[plan["op"]]
@@ -133,8 +133,25 @@ def evidence_result(selection: dict, case: dict) -> dict:
 
 def messages(case: dict) -> list[dict]:
     if case["kind"] == "plan":
-        return [{"role": "system", "content": PLAN_SYSTEM}, {"role": "user", "content": case["request"]}]
+        system = PLAN_SYSTEM
+        if "path_refs" in case:
+            system += (" Paths in this request are temporary file references. Select the exact "
+                       "reference named in the request for path; never invent a filename. "
+                       "Available references: " + json.dumps(case["path_refs"]))
+        return [{"role": "system", "content": system}, {"role": "user", "content": case["request"]}]
     numbered = "\n".join(f"{i}: {line}" for i, line in enumerate(case["output_lines"], 1))
     text = json.dumps({"request": case["request"], "exit_code": case["exit_code"],
                        "truncated": case.get("truncated", False), "output": numbered}, ensure_ascii=False)
     return [{"role": "system", "content": EVIDENCE_SYSTEM}, {"role": "user", "content": text}]
+
+
+def prediction_schema(case: dict) -> dict:
+    if case["kind"] != "plan":
+        return EVIDENCE_SCHEMA
+    if "path_refs" not in case:
+        return PLAN_SCHEMA
+    refs = case["path_refs"]
+    if not isinstance(refs, list) or not refs or any(not isinstance(ref, str) for ref in refs):
+        raise ValueError("invalid path references")
+    return {**PLAN_SCHEMA, "properties": {**PLAN_SCHEMA["properties"],
+            "path": {"type": "string", "enum": refs}}}
