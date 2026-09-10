@@ -1,3 +1,6 @@
 __pycache__/
 work/
 *.jsonl
+.venv/
+.worktrees/
+*.log
