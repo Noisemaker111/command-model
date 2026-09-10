@@ -8,7 +8,7 @@ import json
 import re
 import subprocess
 
-REPO = "Noisemaker111/shell-forensics"
+REPO = "Noisemaker111/command-model"
 MAINTAINER_PERMISSIONS = {"write", "maintain", "admin"}
 
 
@@ -53,7 +53,7 @@ def main():
     require_maintainer(pr["author"]["login"])
     require_maintainer(gh("api", "user")["login"])
     for check in checks:
-        match = re.fullmatch(r"https://github\.com/Noisemaker111/shell-forensics/actions/runs/(\d+)/job/\d+", check.get("detailsUrl", ""))
+        match = re.fullmatch(r"https://github\.com/Noisemaker111/command-model/actions/runs/(\d+)/job/\d+", check.get("detailsUrl", ""))
         if not match:
             raise ValueError("Required check is not the repository Actions job")
         run = gh("api", f"repos/{REPO}/actions/runs/{match[1]}")

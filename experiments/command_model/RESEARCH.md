@@ -1,4 +1,4 @@
-# Starting point: a local command specialist
+# Starting point: a local Command Model
 
 A useful local specialist is feasible on an 8 GB RTX 3070. Beating a frontier model
 on a narrow operation is a testable hypothesis. Beating frontier models generally,

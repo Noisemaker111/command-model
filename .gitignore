@@ -3,5 +3,5 @@ work/
 *.jsonl
 .venv/
 .worktrees/
-experiments/command_specialist/js_parser/node_modules/
+experiments/command_model/js_parser/node_modules/
 *.log

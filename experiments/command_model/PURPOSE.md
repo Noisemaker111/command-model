@@ -1,4 +1,7 @@
-# Command specialist: purpose and evidence
+# Command Model: purpose and evidence
+
+Command Model is the project name. Shell Gatherer collects observations; separate
+mining, labeling and verification processes produce saved datasets.
 
 This is the current project direction. Historical reports describe their own
 experiments; they do not redefine the product. The goal is to reduce frontier

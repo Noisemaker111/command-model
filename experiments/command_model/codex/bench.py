@@ -37,22 +37,22 @@ def prepare(out, case, arm):
     data = CASES[case]
     for name, content in data['files'].items():
         (root / name).write_text(content, encoding='utf-8', newline='')
-    # An independent repository prevents inheriting shell-forensics release chores.
+    # An independent repository prevents inheriting Command Model release chores.
     subprocess.run(['git', 'init', '--quiet', str(root)], check=True)
-    instructions = ('This is an isolated command-specialist benchmark fixture, not an implementation project. '
+    instructions = ('This is an isolated Command Model benchmark fixture, not an implementation project. '
         'Do only the requested operation; no commits, PRs, dependency installs or unrelated browsing. '
         'Modify only report.py. Read the provided input file. Use Python 3.12 standard library. '
         'Report observed failures and any fallback honestly. Do not fabricate results.\n')
-    instructions += ('Use normal native shell/file tools. Do not invoke a local model or command-specialist.\n'
+    instructions += ('Use normal native shell/file tools. Do not invoke a local model or Command Model.\n'
         if arm == 'baseline' else
-        'Call command_specialist.run_python_task once with English intent, exact target report.py, '
+        'Call command_model.run_python_task once with English intent, exact target report.py, '
         'known context and expected stdout. Do not write source or command sequences in that handoff. '
         'If it fails, report failure; do not silently use another executor.\n')
     (root / 'AGENTS.md').write_text(instructions, encoding='utf-8')
     prompt = data['task'] + '\n' + data['context'] + '\nExpected stdout: ' + json.dumps(data['stdout'])
     (directory / 'prompt.txt').write_text(prompt, encoding='utf-8')
     if arm == 'delegated':
-        config = ('[mcp_servers.command_specialist]\n'
+        config = ('[mcp_servers.command_model]\n'
             f'command = {json.dumps(sys.executable)}\n'
             f'args = {json.dumps([str(HERE / "server.py"), "--root", str(root), "--artifacts", str(directory / "local"), "--allow-execute"])}\n'
             'required = true\nstartup_timeout_sec = 30\ntool_timeout_sec = 330\n'

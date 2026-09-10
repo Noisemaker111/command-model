@@ -34,7 +34,7 @@ This verifies the stated stdout condition, not arbitrary semantic correctness.
 From the repository root, invoke Python 3.12:
 
 ```
-python experiments/command_specialist/delegate.py --task-file task.json --root scratch --allow-execute
+python experiments/command_model/delegate.py --task-file task.json --root scratch --allow-execute
 ```
 
 Example handoff (scratch must already exist):

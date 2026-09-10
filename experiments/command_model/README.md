@@ -1,4 +1,4 @@
-# Command specialist
+# Command Model
 
 Start with [project purpose and evidence](PURPOSE.md) for the current goal,
 frontier/worker responsibilities, training scope and next experiment. This page
@@ -51,7 +51,7 @@ A caller can hand off a UTF-8 JSON task file:
 ```
 
 ```powershell
-python experiments/command_specialist/run.py --root '<directory>' --task-file task.json --backend native
+python experiments/command_model/run.py --root '<directory>' --task-file task.json --backend native
 ```
 
 Runtime limits are explicit CLI options and keyword arguments on `inspect_request`.
@@ -59,7 +59,7 @@ Defaults remain `--num-ctx 4096 --num-predict 160` for compatibility. To evaluat
 more context/output capacity with the same model and adapter:
 
 ```powershell
-python experiments/command_specialist/run.py --root '<directory>' --task-file task.json --backend native --num-ctx 8192 --num-predict 2048
+python experiments/command_model/run.py --root '<directory>' --task-file task.json --backend native --num-ctx 8192 --num-predict 2048
 ```
 
 These values reach **both** planning and evidence requests; Modelfile defaults do
@@ -110,7 +110,7 @@ See [binding measurements](BINDING_RESULTS.md). Run the paired live-model experi
 with new filenames and two reference candidates per task:
 
 ```powershell
-python experiments/command_specialist/benchmark_bindings.py --out work/command-specialist/binding-trial --backend native
+python experiments/command_model/benchmark_bindings.py --out work/command-specialist/binding-trial --backend native
 ```
 
 The test alternates bound/unbound order and compares executed output against an
@@ -119,7 +119,7 @@ final-test observations and does not prove file-discovery accuracy.
 
 ## Why this design
 
-The shell-forensics corpus exposes expensive mechanical failures: wrong dialects,
+The Shell Gatherer observation corpus exposes expensive mechanical failures: wrong dialects,
 lost exit codes, nested quoting, and irrelevant output. Removing those failures
 with templates and parsers is useful even before training. A local model should
 interpret ambiguous requests when fixed code cannot. Sending it an already exact
@@ -165,14 +165,14 @@ the system Python. Training uses the separate environment. The recorded pilot
 used CUDA PyTorch 2.11.0+cu128, Transformers 4.57.6, PEFT 0.20.0, and Ollama 0.33.3.
 
 ```powershell
-python -m unittest discover -s experiments/command_specialist -p 'test_*.py' -v
-python experiments/command_specialist/prepare.py --corpus '<private records_annotated.jsonl>'
-python experiments/command_specialist/extract_full.py
+python -m unittest discover -s experiments/command_model -p 'test_*.py' -v
+python experiments/command_model/prepare.py --corpus '<private records_annotated.jsonl>'
+python experiments/command_model/extract_full.py
 ollama pull qwen2.5-coder:1.5b
 ollama pull qwen3.5:0.8b
-python experiments/command_specialist/benchmark.py --model qwen2.5-coder:1.5b
-python experiments/command_specialist/benchmark.py --model qwen3.5:0.8b
-python experiments/command_specialist/benchmark.py --model rules
+python experiments/command_model/benchmark.py --model qwen2.5-coder:1.5b
+python experiments/command_model/benchmark.py --model qwen3.5:0.8b
+python experiments/command_model/benchmark.py --model rules
 ```
 
 Do not run inference benchmarks alongside GPU training. Keep models warm for the
@@ -187,7 +187,7 @@ python -m venv .venv
 .venv/Scripts/python.exe -m pip install --no-cache-dir transformers==4.57.6 peft==0.20.0 accelerate==1.15.0 safetensors
 ollama stop qwen2.5-coder:1.5b
 ollama stop qwen3.5:0.8b
-.venv/Scripts/python.exe experiments/command_specialist/train.py
+.venv/Scripts/python.exe experiments/command_model/train.py
 ```
 
 Training uses response-only loss, rank-16 LoRA on attention projections, BF16 frozen
@@ -212,7 +212,7 @@ preserved. The same applies to dataset and adapter output directories.
 Once the model is created, try a read-only request against an explicitly chosen root:
 
 ```powershell
-python experiments/command_specialist/run.py --root '<directory>' --request 'Read the last 5 lines of "build.log".'
+python experiments/command_model/run.py --root '<directory>' --request 'Read the last 5 lines of "build.log".'
 ```
 
 The CLI prints the plan, result, status, and measured latency. It also saves the full
@@ -228,8 +228,8 @@ that arbitrary commands can run without a shell. Native Unicode comparison,
 encoding handling, and JSON behavior are not a complete PowerShell emulation.
 
 ```powershell
-python experiments/command_specialist/benchmark.py --model shell-specialist-pilot --backend native --label trained-native
-python experiments/command_specialist/run.py --backend native --root '<directory>' --request 'Read the last 5 lines of "build.log".'
+python experiments/command_model/benchmark.py --model shell-specialist-pilot --backend native --label trained-native
+python experiments/command_model/run.py --backend native --root '<directory>' --request 'Read the last 5 lines of "build.log".'
 ```
 
 ## What the scores do and do not mean

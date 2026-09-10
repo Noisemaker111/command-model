@@ -67,8 +67,8 @@ Those conditions differ from the native no-selection benchmark above.
 ## Reproduction and limitations
 
 ```powershell
-python -m unittest discover -s experiments/command_specialist -p 'test_*.py' -v
-python experiments/command_specialist/benchmark_bindings.py --out work/command-specialist/new-binding-trial --backend native
+python -m unittest discover -s experiments/command_model -p 'test_*.py' -v
+python experiments/command_model/benchmark_bindings.py --out work/command-specialist/new-binding-trial --backend native
 ```
 
 Each new output directory gets new random filenames. The original cases, hashes,
