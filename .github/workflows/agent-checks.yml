@@ -32,3 +32,5 @@ jobs:
         run: python -m unittest discover -s experiments/command_specialist -p test_delegate.py -v
       - name: Frozen main candidate and patch notes
         run: python scripts/check_release.py
+      - name: Codex comparison evidence invariants
+        run: python -m unittest discover -s experiments/command_specialist/codex -p test_compare.py -v
