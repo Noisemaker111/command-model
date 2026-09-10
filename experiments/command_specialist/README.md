@@ -45,6 +45,40 @@ A caller can hand off a UTF-8 JSON task file:
 python experiments/command_specialist/run.py --root '<directory>' --task-file task.json --backend native
 ```
 
+Runtime limits are explicit CLI options and keyword arguments on `inspect_request`.
+Defaults remain `--num-ctx 4096 --num-predict 160` for compatibility. To evaluate
+more context/output capacity with the same model and adapter:
+
+```powershell
+python experiments/command_specialist/run.py --root '<directory>' --task-file task.json --backend native --num-ctx 8192 --num-predict 2048
+```
+
+These values reach **both** planning and evidence requests; Modelfile defaults do
+not override them. 8192/2048 is an evaluation profile, not a universal capacity
+recommendation or a speed claim. `--evidence-max-lines` (100),
+`--evidence-max-chars` (8000), and `--packet-max-chars` (2000) independently bound
+selection input and compact stdout/stderr. All limits must be positive integers.
+The character window includes newline separators. It is not a tokenizer budget:
+callers must allow room for their intent, numbered evidence, system instructions,
+and generated output within the chosen context. Ollama may truncate overlong
+prompts; this pilot does not prove arbitrary inputs fit from character counts.
+
+A line-limited selection is marked truncated; a character-overflow window skips
+selection and asks the caller to inspect the raw artifact. Increasing model context
+alone does not enlarge the evidence window. `fallback: "inspect_raw_result"`
+identifies bounded or rejected output; it does not trigger an automatic retry or
+host action. Raw stdout/stderr remain complete for the executed bounded operation
+(the plan's requested line count is still part of that operation).
+
+Empty stdout deterministically returns empty evidence without a second model call.
+For nonempty evidence, the artifact records the requested selection, model response,
+selection timing, and returned packet. Planning output stopped at the generation
+limit is rejected before execution and saved with its timing and raw response;
+evidence output stopped at the limit falls back to the already saved raw result.
+The artifact records effective runtime limits, execution time, prompt/decode token
+counts and durations, and Ollama's stop reason. No model or service settings change.
+See [runtime handoff evaluation](RUNTIME_RESULTS.md) for measured scope and limits.
+
 Or use the Python `run.inspect_request(root, request, targets=...)` boundary. For a
 small CLI request, `--target 'build=logs/build.log' --request 'Read the last 5 lines
 of {{build}}.'` supplies the same binding. Existing unbound `--request` calls retain
