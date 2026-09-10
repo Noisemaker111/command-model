@@ -61,8 +61,8 @@ These are regex heuristics checked by hand on samples. Expect a few percent nois
 
 ## Files
 
-- `SKILL.md` â€” instructions the agent follows
-- `reference.md` â€” baseline numbers and verified harness facts from the first run
+- `SKILL.md` — instructions the agent follows
+- `reference.md` — baseline numbers and verified harness facts from the first run
 - `scripts/extract.py`, `analyze.py`, `scratch.py`, `build.py`, `template.html`
 
 MIT license.
