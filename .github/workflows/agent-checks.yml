@@ -1,0 +1,29 @@
+name: Agent checks
+on:
+  pull_request:
+    branches: [agents, main]
+  push:
+    branches: [agents]
+permissions:
+  contents: read
+concurrency:
+  group: agent-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    name: Windows core
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Validate syntax
+        run: python -m compileall -q scripts experiments/command_specialist
+      - name: Path binding and saved evidence invariants
+        run: python -m unittest discover -s experiments/command_specialist -p test_bindings.py -v
+      - name: Native and PowerShell contract invariants
+        run: python -m unittest discover -s experiments/command_specialist -p test_contract.py -v
