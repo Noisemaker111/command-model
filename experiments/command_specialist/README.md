@@ -23,7 +23,9 @@ The product goal is an agent-to-specialist handoff: the frontier agent supplies
 intent and known context, the local specialist handles supported mechanical work,
 and the agent receives compact faithful evidence with a retrievable raw result.
 These five inspection operations are a capability pilot, not the complete command
-runner product or a new chat interface. Automatic host integration remains pending.
+runner product or a new chat interface. The [OpenCode2 adapter](opencode/README.md) now provides
+file-page evidence handoffs through native read authorization. Routing the five
+command-planning operations through the host remains pending.
 
 Exact paths can now be supplied separately from task wording. The runner binds them
 to request-local references for prediction and restores the original paths before
