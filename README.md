@@ -66,3 +66,11 @@ These are regex heuristics checked by hand on samples. Expect a few percent nois
 - `scripts/extract.py`, `analyze.py`, `scratch.py`, `build.py`, `template.html`
 
 MIT license.
+
+## Local command model experiment
+
+The optional [command specialist pilot](experiments/command_specialist/README.md)
+audits training-data quality, benchmarks small local models on bounded PowerShell
+inspection and evidence-selection tasks, and trains a local LoRA adapter. Its
+synthetic capability scores are separate from this repository's observed transcript
+statistics and do not establish superiority to frontier models.
