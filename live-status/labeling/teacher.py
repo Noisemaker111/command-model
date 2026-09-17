@@ -90,8 +90,10 @@ def salient_names(st: dict) -> list[str]:
 
 def _item(r: dict, feedback: dict | None = None) -> dict:
     from judging.judge import compact_structure
+    from parsers.shell import analyze
+    st = r.get("structure") or analyze(r["command_redacted"], r.get("shell")).to_dict()
     it = {"id": r["id"], "shell": r["shell"], "command": r["command_redacted"],
-          "structure": compact_structure(r["structure"]), "names": salient_names(r["structure"])}
+          "structure": compact_structure(st), "names": salient_names(st)}
     if feedback:
         it["previous_attempt"] = feedback.get("output")
         it["judge_feedback"] = feedback.get("notes")
