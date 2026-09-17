@@ -31,7 +31,7 @@ def run(models: list[str], split: str = "test", limit: int = 0, judge: bool = Tr
     table = []
     for m in models:
         backend = OllamaBackend(m, mode="plain" if prompt == "plain" else "instruct", timeout=60)
-        name = f"baseline-{m.replace(':', '-').replace('/', '_')}-{prompt}-{split}{limit or ''}"
+        name = f"baseline-{data}-{m.replace(':', '-').replace('/', '_')}-{prompt}-{split}{limit or ''}"
         print(f"== {m} ({len(rows)} rows)", flush=True)
         rep = run_eval(backend, rows, name, judge=judge)
         unload(backend)
@@ -40,5 +40,5 @@ def run(models: list[str], split: str = "test", limit: int = 0, judge: bool = Tr
                       "cpu_percent_avg": rep["cpu_percent_avg"]})
         print(json.dumps(table[-1]), flush=True)
     out = {"split": split, "limit": limit, "data": data, "results": table}
-    save_json(home() / "benchmarks" / f"baseline-{prompt}-{split}{limit or ''}.json", out)
+    save_json(home() / "benchmarks" / f"baseline-{data}-{prompt}-{split}{limit or ''}.json", out)
     return out

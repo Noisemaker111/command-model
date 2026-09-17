@@ -20,6 +20,7 @@ from judging.judge import latest_judgements
 ACCEPT, REVIEW = 85, 70
 HARD = ("long_powershell", "nested_quoting", "loop", "conditional", "pipeline", "chained", "natural_language",
         "injection_like", "secret", "malformed", "uncommon_tool", "inline_script", "heredoc", "very_long")
+ADVERSARIAL_TAGS = ("secret", "injection_like", "synthetic")
 PERM = 64
 BANDS = 16
 
@@ -133,9 +134,10 @@ def build(seed: int = 20260916, version: str = "v1", freeze: bool = True) -> dic
     fam_members = collections.defaultdict(list)
     for r in accepted:
         fam_members[r["family"]].append(r)
-    for tag in HARD:
+    for tag in HARD + ("synthetic",):
         tagged = [r for r in accepted if tag in r["tags"]]
-        want = min(15, max(1, len(tagged) // 8)) if tagged else 0
+        # adversarial categories get a larger share of test: they are rare and safety-critical
+        want = (len(tagged) // 2 if tag in ADVERSARIAL_TAGS else min(15, max(1, len(tagged) // 8))) if tagged else 0
         have = sum(1 for r in tagged if fam_split[r["family"]] == "test")
         cands = sorted({r["family"] for r in tagged if fam_split[r["family"]] == "train" and r["id"] not in frozen},
                        key=lambda f: (len(fam_members[f]), rng.random()))

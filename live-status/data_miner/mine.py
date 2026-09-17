@@ -131,6 +131,13 @@ def extract(sources: list[str] | None = None, workers: int = 0) -> dict:
     total = 0
     import json
     with open(tmp, "w", encoding="utf-8", newline="\n") as w, ProcessPoolExecutor(workers) as pool:
+        if sources and out.exists():  # partial run: keep every other source's records
+            for r in read_jsonl(out):
+                if r["source_type"] not in names:
+                    w.write(json.dumps(r, ensure_ascii=False) + "\n")
+                    seen_ids.add(r["id"])
+                    per_source[r["source_type"]] += 1
+                    total += 1
         futures = [pool.submit(_extract_file, n, f) for n, f in jobs]
         for i, fut in enumerate(as_completed(futures), 1):
             name, path, recs, err = fut.result()

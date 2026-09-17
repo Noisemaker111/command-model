@@ -89,10 +89,13 @@ def judge_all(limit: int = 0, batch: int = 8, model: str = DEFAULT_MODEL, worker
         if h_conf >= 0.7 and teacher:
             cands = {**cands, "h": h_text}
         ch = sha(json.dumps(cands, sort_keys=True))
-        if (cid, ch) in done or find_secrets(json.dumps(r["command_redacted"])):
+        if (cid, ch) in done:
             continue
-        items.append({"id": cid, "shell": r["shell"], "command": r["command_redacted"],
-                      "structure": compact_structure(r["structure"]), "candidates": cands, "cand_hash": ch})
+        item = {"id": cid, "shell": r["shell"], "command": r["command_redacted"],
+                "structure": compact_structure(r["structure"]), "candidates": cands, "cand_hash": ch}
+        if find_secrets(json.dumps(item, ensure_ascii=False, indent=1)):
+            continue  # never send; one flagged item would otherwise fail its whole batch
+        items.append(item)
         if limit and len(items) >= limit:
             break
     batches, cur, chars = [], [], 0

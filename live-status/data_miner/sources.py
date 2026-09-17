@@ -505,6 +505,21 @@ def bash_history(path: Path) -> Iterator[dict]:
                               shell="bash", command_raw=cmd, tags=["human_typed"], tool="terminal")
 
 
+ADVERSARIAL = Path(__file__).with_name("adversarial.jsonl")
+
+
+@source("adversarial", "Curated synthetic hard cases: fake credentials, prompt injection, malformed quoting",
+        lambda: [ADVERSARIAL] if ADVERSARIAL.exists() else [])
+def adversarial(path: Path) -> Iterator[dict]:
+    """Fake secrets are stored split by '⟨⟩' so repository secret scanners do not match them."""
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
+        if line.strip():
+            row = json.loads(line)
+            yield _record(id=f"adversarial:{n}", source_file=str(path), source_type="adversarial",
+                          shell=row["shell"], command_raw=row["command"].replace("⟨⟩", ""),
+                          tags=["synthetic"], tool="synthetic")
+
+
 # Known locations with no parser yet; listed in the inventory so gaps stay visible.
 UNPARSED = {
     "t3": ".t3/dev/state.sqlite",

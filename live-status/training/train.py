@@ -166,7 +166,7 @@ def main(argv=None):
                 if step % 10 == 0:
                     row = {"step": step, "dpo_loss": round(loss.item(), 4), "acc": round((margin > 0).float().mean().item(), 3)}
                     log.write(json.dumps(row) + "\n"); log.flush(); print(row, flush=True)
-        val_loss = None
+        val_loss, best_epoch = None, None
     else:
         train, val = load_rows(a)
         items = []
@@ -181,7 +181,7 @@ def main(argv=None):
         print(json.dumps({"train_rows": len(train), "train_items": len(items), "val": len(vitems), "steps": steps,
                           "trainable": sum(p.numel() for p in params), "lr": lr}), flush=True)
         step, ep = 0, 0
-        best_val = float("inf")
+        best_val, best_epoch, best_state = float("inf"), 0, {}
         while step < steps:
             model.train()
             for b in batches(items, a.batch, rng):
@@ -201,7 +201,12 @@ def main(argv=None):
             val_loss = evaluate_loss(torch, model, vitems, tok.pad_token_id, device, a.batch)
             row = {"epoch_end": ep, "step": step, "val_loss": round(val_loss, 4), "s": round(time.time() - t0)}
             log.write(json.dumps(row) + "\n"); log.flush(); print(row, flush=True)
-            best_val = min(best_val, val_loss)
+            if val_loss < best_val:
+                best_val, best_epoch = val_loss, ep
+                best_state = {k: v.detach().to("cpu", copy=True) for k, v in model.state_dict().items()
+                              if full or "lora_" in k}
+        model.load_state_dict(best_state, strict=False)
+        val_loss = best_val
 
     if hasattr(model, "merge_and_unload"):
         model = model.merge_and_unload()
@@ -213,7 +218,7 @@ def main(argv=None):
     meta = {"name": a.name, "base": a.base, "method": a.method, "prompt": a.prompt, "data": a.data,
             "extra": [str(x) for x in a.extra], "dpo": str(a.dpo) if a.dpo else None, "epochs": a.epochs, "lr": lr,
             "batch": a.batch, "max_len": a.max_len, "seed": a.seed, "git": rev, "seconds": round(time.time() - t0),
-            "val_loss": val_loss, "gpu": torch.cuda.get_device_name(0) if device == "cuda" else None,
+            "val_loss": val_loss, "best_epoch": best_epoch, "gpu": torch.cuda.get_device_name(0) if device == "cuda" else None,
             "peak_mem_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2) if device == "cuda" else None}
     save_json(out / "train_meta.json", meta)
     print(json.dumps(meta), flush=True)
