@@ -143,7 +143,14 @@ def main(argv=None):
     t0 = time.time()
 
     if a.dpo:
-        prefs = list(read_jsonl(a.dpo))
+        held = set()
+        for split in ("test", "validation"):
+            f = home() / "datasets" / a.data / f"{split}.jsonl"
+            if f.exists():
+                held |= {r["id"] for r in read_jsonl(f)}
+        prefs = [r for r in read_jsonl(a.dpo) if r.get("id") not in held]
+        dropped = sum(1 for r in read_jsonl(a.dpo) if r.get("id") in held)
+        print(json.dumps({"pref_pairs": len(prefs), "dropped_held_out": dropped}), flush=True)
         pairs = []
         for r in prefs:
             c = encode(tok, r["command"], r["chosen"], False, a.max_len)

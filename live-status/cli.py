@@ -9,6 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
+from labeling.llm import DEFAULT_MODEL as DEFAULT_TEACHER  # noqa: E402
+
+
 def _print(obj) -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=2)[:6000])
 
@@ -99,7 +102,7 @@ def main(argv=None):
         s.add_argument("--limit", type=int, default=0)
         s.add_argument("--batch", type=int, default=20 if name == "generate_labels" else 8)
         s.add_argument("--workers", type=int, default=3, help="parallel Opus requests; >4 trips the subscription rate limit")
-        s.add_argument("--model", default="claude-opus-5")
+        s.add_argument("--model", default=DEFAULT_TEACHER, help="labeling model (default: Haiku)")
         if name == "generate_labels":
             s.add_argument("--ids", help="file of command ids to label (e.g. mined failures)")
         s.set_defaults(fn=fn)

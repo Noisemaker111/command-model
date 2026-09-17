@@ -33,9 +33,31 @@ def unlabeled_pool(n: int, seed: int) -> list[dict]:
     return select(rows, n, seed=seed)
 
 
+def prefs_from_judgements(round_tag: str = "all") -> int:
+    """Every judged row that also saw a student output ("m") yields a preference pair."""
+    cmds = {r["id"]: r for r in load_commands()}
+    seen = set()
+    path = home() / "labels" / "prefs.jsonl"
+    if path.exists():
+        seen = {(r["id"], r["rejected"]) for r in read_jsonl(path)}
+    out = []
+    for cid, j in latest_judgements().items():
+        rejected = (j.get("candidates") or {}).get("m")
+        chosen = j.get("recommended_output")
+        if not rejected or not chosen or cid not in cmds:
+            continue
+        if chosen.strip() == rejected.strip() or (cid, rejected) in seen:
+            continue
+        if j["validators"]["pass"] and (j.get("recommended_score") or 0) >= 85:
+            out.append({"id": cid, "command": cmds[cid]["command_redacted"], "chosen": chosen,
+                        "rejected": rejected, "round": round_tag})
+    append_jsonl(path, out)
+    return len(out)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="mine_failures")
-    p.add_argument("--backend", required=True)
+    p.add_argument("--backend")
     p.add_argument("--round", required=True, help="round tag, e.g. r1")
     p.add_argument("--pool", type=int, default=1000)
     p.add_argument("--seed", type=int, default=0)
@@ -43,7 +65,11 @@ def main(argv=None):
     p.add_argument("--screen", choices=["jev", "opus"], default="jev",
                    help="jev: cheap reference-free ranking; opus: judge every student output")
     p.add_argument("--fail-fraction", type=float, default=0.4, help="jev screen: share of lowest-ranked outputs to relabel")
+    p.add_argument("--rebuild-prefs", action="store_true", help="only derive preference pairs from existing judgements")
     a = p.parse_args(argv)
+    if a.rebuild_prefs:
+        print(json.dumps({"new_pairs": prefs_from_judgements(a.round)}))
+        return
     from inference.backends import from_spec
 
     out_dir = home() / "active" / a.round
