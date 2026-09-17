@@ -16,7 +16,13 @@ from redaction.redact import find_secrets
 
 BASE_URL = os.environ.get("LIVE_STATUS_LLM_URL", "http://127.0.0.1:8317/v1")
 API_KEY = os.environ.get("LIVE_STATUS_LLM_KEY", "local")  # CLIProxyAPI localhost gate, not a vendor key
-DEFAULT_MODEL = os.environ.get("LIVE_STATUS_TEACHER", "claude-opus-5")
+DEFAULT_MODEL = os.environ.get("LIVE_STATUS_TEACHER", "claude-haiku-4-5-20251001")
+MODEL_CODES = {"claude-haiku-4-5-20251001": "h", "claude-opus-5": "o", "claude-sonnet-5": "s"}
+
+
+def model_code(model: str) -> str:
+    """Short per-model tag so candidates from different teachers stay distinguishable."""
+    return MODEL_CODES.get(model, model.split("-")[1][:1] if "-" in model else model[:1])
 
 
 MAX_COOLDOWN_WAIT = float(os.environ.get("LIVE_STATUS_MAX_COOLDOWN", "900"))

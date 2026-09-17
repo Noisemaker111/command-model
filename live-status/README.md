@@ -35,8 +35,8 @@ Run from the repository root. GPU steps use the training venv (see TRAINING.md).
 | --- | --- |
 | Inventory transcript sources | `python live-status/cli.py inventory_sources` |
 | Extract, redact, deduplicate, report | `python live-status/cli.py extract_commands` |
-| Teacher labels (Opus 5) | `python live-status/cli.py generate_labels --limit 4000` |
-| Judge labels (Opus 5) | `python live-status/cli.py judge_labels` |
+| Teacher labels (Haiku) | `python live-status/cli.py generate_labels --limit 4000` |
+| Judge labels (Haiku) | `python live-status/cli.py judge_labels` |
 | Build splits | `python live-status/cli.py build_dataset --version v1` |
 | Baseline tiny models | `python live-status/cli.py benchmark_base_models --models smollm2:135m qwen3:0.6b` |
 | Train | `live-status/cli.py train --base Qwen/Qwen3-0.6B --method lora --name ...` |
@@ -52,8 +52,10 @@ commands stay in its `private/` folder.
 
 ## Models and keys
 
-- Teacher and judge: `claude-opus-5` through the local CLIProxyAPI (`127.0.0.1:8317`).
-  It shares the Claude subscription; keep `--workers` at 4 or below. On a long cooldown
+- Teacher and judge: `claude-haiku-4-5-20251001` through the local CLIProxyAPI
+  (`127.0.0.1:8317`), overridable with `--model` or `LIVE_STATUS_TEACHER`. Haiku labels match
+  Opus's own second-choice candidates (DATASET.md), so Opus is reserved for spot checks.
+  These share the Claude subscription; keep `--workers` at 4 or below. On a long cooldown
   the run stops and resumes on rerun.
 - Grader: TypeSafe `jev` through Vercel AI Gateway (`AI_GATEWAY_API_KEY` in the repo
   `.env`) or directly (`TYPESAFE_API_KEY`). Needs Bun; `bun install` in `live-status/jev`.

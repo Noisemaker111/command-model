@@ -42,13 +42,32 @@ ordinary text look secret-shaped).
 
 ## Labels
 
-- Teacher: Opus 5, `teacher-v1`, temperature 0.4, two candidates per command (concise and
-  complete), batches of ≤20 commands / 30k characters.
-- Judge: Opus 5, `judge-v1`, temperature 0, scores each candidate plus the heuristic,
-  picks the best and writes `recommended_output`.
+- Teacher: `teacher-v2`, temperature 0.4, two candidates per command (concise and complete),
+  batches of ≤20 commands / 30k characters. Items carry the parser's `structure` and `names`
+  so the model keeps concrete names instead of "the script".
+- Judge: `judge-v1`, temperature 0, scores each candidate plus the heuristic, picks the best
+  and writes `recommended_output`.
 - Decision: accepted when the recommended score ≥ 85, validators pass and the judge is not
   uncertain; manual review at 70–84, uncertain, or validator failure; rejected for secret
   leakage or score < 70. The judge rewrites weak candidates, so v1 has no rejections.
+- Model: **Haiku 4.5** by default (`LIVE_STATUS_TEACHER`). v1's labels were written by Opus 5;
+  rows record `teacher_model` and `judge_model`, and candidate keys are prefixed per model
+  (`ota` = Opus teacher candidate a, `hta` = Haiku), so mixed provenance stays traceable.
+
+### Why Haiku
+
+On 300 test commands that already had Opus labels, Haiku relabelled from scratch and its
+labels were graded against the Opus gold:
+
+| Teacher | Accepted vs Opus gold | Same actions | Invented |
+| --- | ---: | ---: | ---: |
+| Haiku, `teacher-v1` prompt | 74.0% | 97.6% | 4.5% |
+| Haiku, `teacher-v2` prompt (+structure, +names) | **78.9%** | 96.7% | 3.7% |
+| Opus's own second-choice candidate (reference point) | 72.0% | — | — |
+
+Haiku with the structure hints matches Opus's own alternate candidates, at a fraction of the
+cost and without exhausting the Claude subscription that the interactive session shares.
+Opus stays available (`--model claude-opus-5`) for spot checks.
 
 ## v1 splits
 

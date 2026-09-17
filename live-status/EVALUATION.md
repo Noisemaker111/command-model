@@ -20,13 +20,16 @@ recall for simple read/process/delete commands.
 | Grader | What it sees | Cost / speed | Agreement with Opus 5 |
 | --- | --- | --- | --- |
 | `opus` | command, reference, output; returns correct, score, missing/hallucinated actions, secret leak, injection followed | ~20 outputs per call, ~60 s | — |
+| `opus` on Haiku's labels | same | same | Haiku labels reach 78.9% of the Opus gold standard (DATASET.md) |
 | `jev` (default) | command, reference, output; answers `same_actions`, `invented`, `quality` | 700 outputs in ~3 s, ~$0.02 | AUC 0.92, 86.4% agreement at score ≥ 0.45 (700 Opus-graded outputs) |
 
 A jev-accepted output passes validators and has
 `same × (1 − invented) × quality/4 ≥ 0.45`. Calibration lives in
 `evaluation/jev_eval_calibration.json`; rerun it with `python live-status/judging/jev.py calibrate-eval`.
-Grading a status without a reference is much weaker (AUC 0.68 on 3,000 teacher candidates), so
-jev only *ranks* unlabeled outputs during failure mining and Opus writes the labels.
+Grading a status without a reference is much weaker (AUC 0.68 on 3,000 teacher candidates), and
+asking jev to *choose* between near-equal candidates matches the judge only 52% of the time
+(1,200 commands, `judging/jev.py calibrate-choice`). So jev ranks unlabeled outputs during
+failure mining, and a judge model still writes the labels.
 
 jev is stricter than Opus on good outputs: Opus's alternate teacher candidates on 200 test
 commands pass 86% of Opus evaluations and 72% of jev evaluations. Compare runs only within

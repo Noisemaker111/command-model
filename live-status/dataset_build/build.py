@@ -91,9 +91,25 @@ def _split_of(family: str, seed: int) -> str:
     return "test" if x < 0.1 else "validation" if x < 0.2 else "train"
 
 
+def gold_lock_path():
+    return home() / "datasets" / "gold_lock.json"
+
+
+def load_gold_lock() -> dict:
+    import json
+    path = gold_lock_path()
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
 def build(seed: int = 20260916, version: str = "v1", freeze: bool = True) -> dict:
     cmds = {r["id"]: r for r in read_jsonl(home() / "commands_redacted.jsonl")}
     judged = latest_judgements()
+    # Held-out labels are frozen with the judgement that produced them, so re-judging the
+    # corpus with another model cannot silently move the benchmark's target.
+    lock = load_gold_lock()
+    for cid, locked in lock.items():
+        if cid in judged:
+            judged[cid] = locked
     buckets = collections.defaultdict(list)
     for cid, j in judged.items():
         r = cmds.get(cid)
@@ -165,6 +181,9 @@ def build(seed: int = 20260916, version: str = "v1", freeze: bool = True) -> dic
             new_frozen.setdefault(r["id"], name)
     if freeze:
         save_json(frozen_path, new_frozen)
+        lock.update({r["id"]: judged[r["id"]] for name in ("test", "validation") for r in splits[name]
+                     if r["id"] in judged and r["id"] not in lock})
+        save_json(gold_lock_path(), lock)
 
     leak = _leak_check(splits)
     report = {"version": version, "seed": seed, "counts": counts, "families": len(set(fam.values())),
