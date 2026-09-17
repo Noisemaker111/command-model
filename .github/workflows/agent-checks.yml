@@ -23,7 +23,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Validate syntax
-        run: python -m compileall -q scripts skills experiments/command_model
+        run: python -m compileall -q scripts skills experiments/command_model live-status
+      - name: Live-status redaction and service boundary invariants
+        run: python -m unittest discover -s live-status/tests -t live-status -v
       - name: Path binding and saved evidence invariants
         run: python -m unittest discover -s experiments/command_model -p test_bindings.py -v
       - name: Native and PowerShell contract invariants
