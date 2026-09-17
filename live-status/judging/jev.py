@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from common import ROOT, _main_checkout, home, read_jsonl, save_json  # noqa: E402
+from common import ROOT, _main_checkout, home, read_jsonl, save_json, write_jsonl  # noqa: E402
 from redaction.redact import find_secrets  # noqa: E402
 
 BRIDGE = ROOT / "jev" / "evaluate.ts"
@@ -61,21 +61,23 @@ def _direct(req: dict) -> dict:
 
 
 def evaluate(requests: list[dict], concurrency: int = 16) -> dict[str, dict]:
-    """requests: [{"id", "state", "questions"}] -> {id: result}. Refuses secret-bearing state."""
+    """requests: [{"id", "state", "questions"}] -> {id: result}. Secret-bearing states are never sent."""
     load_env()
-    for r in requests:
-        if find_secrets(json.dumps(r["state"], ensure_ascii=False)):
-            raise ValueError(f"refusing to send secret-like state for {r['id']}")
+    withheld = {r["id"]: {"id": r["id"], "error": "withheld: secret-like state"}
+                for r in requests if find_secrets(json.dumps(r["state"], ensure_ascii=False))}
+    requests = [r for r in requests if r["id"] not in withheld]
+    if not requests:
+        return withheld
     if os.environ.get("TYPESAFE_API_KEY"):
         with ThreadPoolExecutor(concurrency) as pool:
-            return {x["id"]: x for x in pool.map(_direct, requests)}
+            return {**withheld, **{x["id"]: x for x in pool.map(_direct, requests)}}
     if not os.environ.get("AI_GATEWAY_API_KEY"):
         raise RuntimeError("set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY (command-model/.env)")
     proc = subprocess.run(["bun", str(BRIDGE)], input="\n".join(json.dumps(r) for r in requests), text=True,
                           capture_output=True, encoding="utf-8", env={**os.environ, "JEV_CONCURRENCY": str(concurrency)})
     if proc.returncode:
         raise RuntimeError(proc.stderr[-500:])
-    return {x["id"]: x for x in map(json.loads, proc.stdout.splitlines()) if x}
+    return {**withheld, **{x["id"]: x for x in map(json.loads, proc.stdout.splitlines()) if x}}
 
 
 def grade(pairs: list[tuple[str, str, str]]) -> dict[str, dict]:
@@ -100,6 +102,8 @@ def calibrate(limit: int) -> dict:
     from judging.judge import latest_judgements
     pairs, truth = [], {}
     for cid, j in list(latest_judgements().items()):
+        if cid not in cmds:
+            continue
         for ck, text in j["candidates"].items():
             v = j["verdicts"].get(ck)
             if not isinstance(v, dict) or "score" not in v:
@@ -111,20 +115,124 @@ def calibrate(limit: int) -> dict:
             break
     graded = grade(pairs)
     ok = [k for k in truth if "error" not in graded.get(k, {"error": 1})]
-    tp = sum(1 for k in ok if graded[k]["pass"] and truth[k])
-    fp = sum(1 for k in ok if graded[k]["pass"] and not truth[k])
-    fn = sum(1 for k in ok if not graded[k]["pass"] and truth[k])
-    tn = len(ok) - tp - fp - fn
+    rows = [{"key": k, "opus_pass": truth[k], **graded[k], "combined": combined(graded[k])} for k in ok]
+    write_jsonl(home() / "evaluation" / "jev_calibration_pairs.jsonl", rows)
     rep = {"pairs": len(pairs), "graded": len(ok), "errors": len(pairs) - len(ok),
-           "agreement": round((tp + tn) / max(1, len(ok)), 3), "precision": round(tp / max(1, tp + fp), 3),
-           "recall": round(tp / max(1, tp + fn), 3), "opus_pass_rate": round(sum(truth[k] for k in ok) / max(1, len(ok)), 3),
+           "opus_pass_rate": round(sum(truth[k] for k in ok) / max(1, len(ok)), 3),
+           "auc": {f: round(auc([r[f] for r in rows], [r["opus_pass"] for r in rows]), 3) for f in FEATURES},
+           "rule": fit_rule(rows),
            "first_error": next((graded[k]["error"] for k in graded if "error" in graded[k]), None)}
     save_json(home() / "evaluation" / "jev_calibration.json", rep)
     return rep
 
 
+REF_QUESTIONS = {
+    "same_actions": {"type": "boolean", "instructions": "The output status describes the same actions as the reference status (wording may differ; it may omit only trivial details)."},
+    "invented": {"type": "boolean", "instructions": "The output status mentions an action, target, file or outcome that is in neither the command nor the reference."},
+    "quality": {"type": "score", "instructions": "How well does the output status match the reference status as a description of the command?",
+                "criteria": ["wrong or misleading", "partly right, missing key actions", "right but vague",
+                             "right and specific", "as good as the reference"]},
+}
+
+
+def grade_against_reference(items: list[tuple[str, str, str, str]]) -> dict[str, dict]:
+    """items: (key, command, reference, output) -> {key: {"same", "invented", "quality", "score"}}"""
+    res = evaluate([{"id": k, "state": {"command": c, "reference": ref, "output": out}, "questions": REF_QUESTIONS}
+                    for k, c, ref, out in items])
+    graded = {}
+    for k, r in res.items():
+        if "error" in r:
+            graded[k] = {"error": r["error"]}
+            continue
+        a = r["answers"]
+        g = {"same": a["same_actions"]["probability"], "invented": a["invented"]["probability"], "quality": a["quality"]["score"]}
+        g["score"] = g["same"] * (1 - g["invented"]) * (g["quality"] / 4)
+        graded[k] = g
+    return graded
+
+
+def calibrate_eval(limit: int) -> dict:
+    """Agreement with Opus 5 evaluation verdicts on saved benchmark outputs (reference-based grading)."""
+    from evaluation.evaluate import ACCEPT_SCORE, load_cache
+    cache = load_cache()
+    items, truth, seen = [], {}, set()
+    for f in sorted((home() / "evaluation" / "outputs").glob("*.jsonl")):
+        for o in read_jsonl(f):
+            v = cache.get(o.get("jkey"))
+            key = o.get("jkey")
+            if not v or key in seen or not o["output"] or find_secrets(json.dumps(o["command"])):
+                continue
+            seen.add(key)
+            items.append((key, o["command"], o["status"], o["output"]))
+            truth[key] = bool(v.get("correct")) and v.get("score", 0) >= ACCEPT_SCORE
+            if limit and len(items) >= limit:
+                break
+    graded = grade_against_reference(items)
+    rows = [{"key": k, "opus_pass": truth[k], **graded[k]} for k in truth if "error" not in graded.get(k, {"error": 1})]
+    write_jsonl(home() / "evaluation" / "jev_eval_calibration_pairs.jsonl", rows)
+    labels = [r["opus_pass"] for r in rows]
+    best = max(({"threshold": t / 100, "accuracy": round(sum((r["score"] >= t / 100) == r["opus_pass"] for r in rows) / len(rows), 3)}
+                for t in range(1, 100)), key=lambda x: x["accuracy"])
+    rep = {"pairs": len(items), "graded": len(rows), "opus_pass_rate": round(sum(labels) / max(1, len(rows)), 3),
+           "auc": {f: round(auc([r[f] if f != "invented" else -r[f] for r in rows], labels), 3) for f in ("same", "invented", "quality", "score")},
+           "best_threshold": best}
+    save_json(home() / "evaluation" / "jev_eval_calibration.json", rep)
+    return rep
+
+
+FEATURES = ("accurate", "complete", "names", "quality", "combined")
+RULE_PATH = "jev_rule.json"
+
+
+def combined(g: dict) -> float:
+    return g["accurate"] * g["complete"] * (g["quality"] / 4)
+
+
+def auc(scores: list[float], labels: list[bool]) -> float:
+    """Probability a random Opus-pass pair outscores a random Opus-fail pair (ties count half)."""
+    order = sorted(range(len(scores)), key=lambda i: scores[i])
+    ranks = [0.0] * len(scores)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and scores[order[j + 1]] == scores[order[i]]:
+            j += 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = (i + j) / 2 + 1
+        i = j + 1
+    pos = sum(labels)
+    neg = len(labels) - pos
+    if not pos or not neg:
+        return float("nan")
+    return (sum(r for r, l in zip(ranks, labels) if l) - pos * (pos + 1) / 2) / (pos * neg)
+
+
+def fit_rule(rows: list[dict]) -> dict:
+    """Best single threshold on `combined`, plus thresholds with >= 0.9 precision for each direction."""
+    best = None
+    for t in [x / 100 for x in range(1, 100)]:
+        tp = sum(1 for r in rows if r["combined"] >= t and r["opus_pass"])
+        fp = sum(1 for r in rows if r["combined"] >= t and not r["opus_pass"])
+        tn = sum(1 for r in rows if r["combined"] < t and not r["opus_pass"])
+        acc = (tp + tn) / len(rows)
+        prec = tp / max(1, tp + fp)
+        # confident-fail threshold: below it, Opus almost never passes the pair
+        below = [r for r in rows if r["combined"] < t]
+        fail_prec = sum(1 for r in below if not r["opus_pass"]) / max(1, len(below))
+        cand = {"threshold": t, "accuracy": round(acc, 3), "pass_precision": round(prec, 3),
+                "pass_coverage": round((tp + fp) / len(rows), 3), "fail_precision": round(fail_prec, 3),
+                "fail_coverage": round(len(below) / len(rows), 3)}
+        if best is None or acc > best["accuracy"]:
+            best = cand
+        if fail_prec >= 0.9 and ("confident_fail" not in best or t > best["confident_fail"]["threshold"]):
+            best["confident_fail"] = cand
+    save_json(home() / "evaluation" / RULE_PATH, best)
+    return best
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("action", choices=["calibrate"])
+    p.add_argument("action", choices=["calibrate", "calibrate-eval"])
     p.add_argument("--limit", type=int, default=400)
-    print(json.dumps(calibrate(p.parse_args().limit), indent=2))
+    a = p.parse_args()
+    print(json.dumps((calibrate if a.action == "calibrate" else calibrate_eval)(a.limit), indent=2))

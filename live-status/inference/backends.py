@@ -45,7 +45,8 @@ def _post(url: str, body: dict, timeout: float) -> dict:
 
 
 class OllamaBackend:
-    """`mode="plain"` uses the fine-tuned completion format; "instruct" uses chat with few-shot."""
+    """`plain`: fine-tuned completion format; `long`: same with the instruction prepended;
+    `instruct`: chat with few-shot examples (untuned models)."""
 
     def __init__(self, model: str, url: str = "http://127.0.0.1:11434", mode: str = "plain",
                  timeout: float = 20.0, keep_alive: str = "30m", cpu: bool = False, threads: int | None = None):
@@ -64,8 +65,8 @@ class OllamaBackend:
     def generate(self, command: str) -> tuple[str, dict]:
         opts = self._options()
         t0 = time.perf_counter()
-        if self.mode == "plain":
-            out = _post(f"{self.url}/api/generate", {"model": self.model, "prompt": student_prompt(command, instruct=False),
+        if self.mode in ("plain", "long"):
+            out = _post(f"{self.url}/api/generate", {"model": self.model, "prompt": student_prompt(command, instruct=self.mode == "long"),
                                                     "raw": True, "stream": False, "options": opts, "keep_alive": self.keep_alive}, self.timeout)
             text = out.get("response", "")
         else:
@@ -138,13 +139,13 @@ class HFBackend:
 
 
 def from_spec(spec: str):
-    """ollama:<model>[:plain|:instruct][:cpu] | llama-server:<url> | hf:<base>[@<adapter>]"""
+    """ollama:<model>[:plain|:long|:instruct][:cpu] | llama-server:<url> | hf:<base>[@<adapter>]"""
     kind, _, rest = spec.partition(":")
     if kind == "ollama":
         mode, cpu = "plain", False
         if rest.endswith(":cpu"):
             rest, cpu = rest[:-4], True
-        for m in ("plain", "instruct"):
+        for m in ("plain", "instruct", "long"):
             if rest.endswith(":" + m):
                 rest, mode = rest[: -len(m) - 1], m
         return OllamaBackend(rest, mode=mode, cpu=cpu)

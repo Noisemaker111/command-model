@@ -3,7 +3,7 @@ label those with the teacher, and record preference pairs for DPO.
 
   python live-status/cli.py mine_failures --backend ollama:live-status-smol135 --round r1 --pool 1500
 
-Stage A: judge the student output alone (cheap screen; passes become judged positives).
+Stage A: screen student outputs, by default with Jev ranking (or an Opus judge pass).
 Stage B: failures get teacher candidates and a second judge pass that also sees the
 student output, yielding a corrected label and a (chosen, rejected) pair.
 Rebuild the dataset afterwards; frozen test/validation families stay put.
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from pathlib import Path
 
@@ -39,12 +40,16 @@ def main(argv=None):
     p.add_argument("--pool", type=int, default=1000)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--screen", choices=["jev", "opus"], default="jev",
+                   help="jev: cheap reference-free ranking; opus: judge every student output")
+    p.add_argument("--fail-fraction", type=float, default=0.4, help="jev screen: share of lowest-ranked outputs to relabel")
     a = p.parse_args(argv)
     from inference.backends import from_spec
 
     out_dir = home() / "active" / a.round
     backend = from_spec(a.backend)
-    pool = unlabeled_pool(a.pool, a.seed or hash(a.round) & 0xFFFF)
+    a.seed = a.seed or int.from_bytes(a.round.encode()[:4].ljust(4, b"0"), "little")
+    pool = unlabeled_pool(a.pool, a.seed)
     outputs = {}
     for i, r in enumerate(pool, 1):
         try:
@@ -57,17 +62,31 @@ def main(argv=None):
             print(f"  generated {i}/{len(pool)}", flush=True)
     write_jsonl(out_dir / "student_outputs.jsonl", ({"id": k, "output": v} for k, v in outputs.items()))
 
-    screen = {k: {"m": v} for k, v in outputs.items() if v}
-    print(json.dumps({"stage": "A", **judge_all(extra=screen, teacher=False, only_ids=set(screen), workers=a.workers)}), flush=True)
-    judged = latest_judgements()
     cmds = {r["id"]: r for r in pool}
     failures = []
-    for cid, text in outputs.items():
-        j = judged.get(cid)
-        verdict = (j or {}).get("verdicts", {}).get("m", {}) if j else {}
-        ok = bool(text) and verdict.get("correct") and verdict.get("score", 0) >= PASS_SCORE and check(text, cmds[cid]["command_redacted"])["pass"]
-        if not ok:
-            failures.append(cid)
+    if a.screen == "jev":
+        # Reference-free Jev ranks outputs (AUC ~0.68 vs Opus); the weakest go to the teacher,
+        # plus a random slice so the ranking's misses are still sampled.
+        from judging.jev import combined, grade
+        invalid = [cid for cid, t in outputs.items() if not t or not check(t, cmds[cid]["command_redacted"])["pass"]]
+        rest = [cid for cid in outputs if cid not in set(invalid)]
+        graded = grade([(cid, cmds[cid]["command_redacted"], outputs[cid]) for cid in rest])
+        ranked = sorted(rest, key=lambda cid: combined(graded[cid]) if "error" not in graded[cid] else -1)
+        k = int(len(ranked) * a.fail_fraction)
+        tail = ranked[k:]
+        rng = random.Random(a.seed)
+        failures = invalid + ranked[:k] + rng.sample(tail, min(len(tail), max(1, k // 5)))
+        write_jsonl(out_dir / "jev_screen.jsonl", ({"id": cid, **graded[cid]} for cid in rest))
+    else:
+        screen = {k: {"m": v} for k, v in outputs.items() if v}
+        print(json.dumps({"stage": "A", **judge_all(extra=screen, teacher=False, only_ids=set(screen), workers=a.workers)}), flush=True)
+        judged = latest_judgements()
+        for cid, text in outputs.items():
+            j = judged.get(cid)
+            verdict = (j or {}).get("verdicts", {}).get("m", {}) if j else {}
+            ok = bool(text) and verdict.get("correct") and verdict.get("score", 0) >= PASS_SCORE and check(text, cmds[cid]["command_redacted"])["pass"]
+            if not ok:
+                failures.append(cid)
     ids_file = out_dir / "failure_ids.txt"
     ids_file.write_text("\n".join(failures), encoding="utf-8")
     print(json.dumps({"pool": len(pool), "failures": len(failures), "failure_rate": round(len(failures) / max(1, len(pool)), 3)}), flush=True)

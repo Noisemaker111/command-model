@@ -15,7 +15,8 @@ async function one(line: string): Promise<string> {
         model,
         state: req.state,
         questions: req.questions,
-        providerOptions: { gateway: { zeroDataRetention: true } },
+        // Request-level ZDR needs a Vercel Pro plan; Jev itself is listed as ZDR/no-training.
+        ...(process.env.JEV_ZDR === "1" ? { providerOptions: { gateway: { zeroDataRetention: true } } } : {}),
       });
       return JSON.stringify({
         id: req.id,

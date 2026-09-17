@@ -38,6 +38,8 @@ def parse(argv):
     p.add_argument("--batch", type=int, default=16)
     p.add_argument("--max-len", type=int, default=768)
     p.add_argument("--lora-r", type=int, default=32)
+    p.add_argument("--optim", choices=["adamw", "adafactor"], default="adamw",
+                   help="adafactor keeps full fine-tunes of 270-360M models inside 8 GB")
     p.add_argument("--no-weights", action="store_true")
     p.add_argument("--dpo", type=Path, help="preference JSONL (command, chosen, rejected) -> DPO stage")
     p.add_argument("--dpo-beta", type=float, default=0.1)
@@ -132,7 +134,11 @@ def main(argv=None):
                                                  target_modules=targets, task_type="CAUSAL_LM"))
     lr = a.lr or (1e-5 if a.dpo else 5e-5 if full else 2e-4)
     params = [p for p in model.parameters() if p.requires_grad]
-    opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0)
+    if a.optim == "adafactor":
+        from transformers.optimization import Adafactor
+        opt = Adafactor(params, lr=lr, scale_parameter=False, relative_step=False, warmup_init=False)
+    else:
+        opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0)
     log = open(out / "train_log.jsonl", "w", encoding="utf-8")
     t0 = time.time()
 
@@ -217,7 +223,7 @@ def main(argv=None):
     rev = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=Path(__file__).parent).stdout.strip()
     meta = {"name": a.name, "base": a.base, "method": a.method, "prompt": a.prompt, "data": a.data,
             "extra": [str(x) for x in a.extra], "dpo": str(a.dpo) if a.dpo else None, "epochs": a.epochs, "lr": lr,
-            "batch": a.batch, "max_len": a.max_len, "seed": a.seed, "git": rev, "seconds": round(time.time() - t0),
+            "batch": a.batch, "max_len": a.max_len, "optim": a.optim, "seed": a.seed, "git": rev, "seconds": round(time.time() - t0),
             "val_loss": val_loss, "best_epoch": best_epoch, "gpu": torch.cuda.get_device_name(0) if device == "cuda" else None,
             "peak_mem_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2) if device == "cuda" else None}
     save_json(out / "train_meta.json", meta)

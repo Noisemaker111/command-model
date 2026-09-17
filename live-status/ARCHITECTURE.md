@@ -38,6 +38,11 @@
 - **Heuristic as fallback, not fast path.** The deterministic describer answers in under a millisecond, but its confidence ≥ 0.9 outputs cover only 8.7% of executions and the judge rated just 19% of them ≥ 80 (they are correct but generic: "Reviewing the Git diff." for `git diff --stat`). The service therefore always asks the model and uses the heuristic when the model fails, times out or produces an invalid sentence; `--fast-path` re-enables the shortcut.
 - **Plain completion format.** The student learns `Command:\n…\n\nStatus: <sentence>` with no system prompt, so each request costs only the command's tokens.
 - **Ollama/llama.cpp for serving.** It already runs on this machine, serves GGUF at every quantization level, and keeps models warm. `llama-server` is supported by the same backend interface.
+- **jev for grading, Opus for writing.** jev (TypeSafe System One) returns only probabilities,
+  choices and scores, in milliseconds, at $0.042 per million input tokens. Given the gold
+  status it agrees with Opus evaluations at AUC 0.92, so it grades every benchmark and ranks
+  student outputs for failure mining. Without a reference it is too weak (AUC 0.68) to
+  replace the Opus judge when labels are created.
 - **Opus 5 as both teacher and judge**, with different prompts. Label diversity comes from two candidates per command plus the heuristic, not from different models.
 - **Frequency weighting.** Each template group counts `min(4, 1 + log2(count))` times in training, so common patterns are learned first without drowning the long tail.
 

@@ -19,6 +19,7 @@ scopes; the purpose document preserves what each actually demonstrated.
 | Execution verification and datasets | Check candidate behavior and save examples with frozen held-out partitions |
 | Model training | Train for the actual delegation protocol, preserving original adapters |
 | Local execution loop and frontier evaluation | Execute grounded English jobs and measure verified whole-operation accuracy, time and tokens |
+| [Live status](live-status/README.md) | Tiny local model and service that turn commands into one-sentence live status text |
 
 The gatherer does not certify training examples. See the
 [data pipeline](experiments/command_model/DATA_PIPELINE.md) and
