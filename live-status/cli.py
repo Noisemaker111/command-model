@@ -72,6 +72,11 @@ def cmd_serve(a):
     serve_main(a.rest)
 
 
+def cmd_self_label(a):
+    from labeling.self_label import main as self_main
+    self_main(a.rest)
+
+
 def cmd_mine_failures(a):
     from evaluation.active import main as active_main
     active_main(a.rest)
@@ -83,7 +88,7 @@ def cmd_run_full_pipeline(a):
 
 
 PASSTHROUGH = {"train": cmd_train, "evaluate": cmd_evaluate, "export_gguf": cmd_export_gguf,
-               "serve": cmd_serve, "mine_failures": cmd_mine_failures}
+               "serve": cmd_serve, "mine_failures": cmd_mine_failures, "self_label": cmd_self_label}
 
 
 def main(argv=None):

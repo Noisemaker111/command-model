@@ -69,6 +69,16 @@ Haiku with the structure hints matches Opus's own alternate candidates, at a fra
 cost and without exhausting the Claude subscription that the interactive session shares.
 Opus stays available (`--model claude-opus-5`) for spot checks.
 
+### Self-labels (no paid model)
+
+`labeling/self_label.py` has the fine-tuned student write 4-5 candidates for a command and
+Jev select one, keeping the label when the selector's score clears 0.30. Measured against gold
+on the v1 test set, that gate keeps 66% of commands at 89.6% precision (0.25 → 77% at 87.7%,
+0.35 → 55% at 90.0%; `evaluation/self_label_threshold.json`). Kept rows join **training only**,
+carry `label_source: "self"`, and are dropped when their family belongs to a held-out split.
+Rejected commands land in `labels/needs_teacher.txt` for a paid pass, so the teacher only sees
+what the local loop could not label.
+
 ## v1 splits
 
 | Split | Rows |

@@ -54,16 +54,19 @@ class OllamaBackend:
         self.cpu, self.threads = cpu, threads
         self.name = f"ollama:{model}:{mode}" + (":cpu" if cpu else "")
 
-    def _options(self) -> dict:
-        opts = {"temperature": 0, "num_predict": MAX_NEW_TOKENS, "stop": ["\n"], "num_ctx": 2048}
+    def _options(self, temperature: float | None = None, seed: int | None = None) -> dict:
+        opts = {"temperature": 0 if temperature is None else temperature,
+                "num_predict": MAX_NEW_TOKENS, "stop": ["\n"], "num_ctx": 2048}
+        if seed is not None:
+            opts["seed"] = seed
         if self.cpu:
             opts["num_gpu"] = 0
         if self.threads:
             opts["num_thread"] = self.threads
         return opts
 
-    def generate(self, command: str) -> tuple[str, dict]:
-        opts = self._options()
+    def generate(self, command: str, temperature: float | None = None, seed: int | None = None) -> tuple[str, dict]:
+        opts = self._options(temperature, seed)
         t0 = time.perf_counter()
         if self.mode in ("plain", "long"):
             out = _post(f"{self.url}/api/generate", {"model": self.model, "prompt": student_prompt(command, instruct=self.mode == "long"),

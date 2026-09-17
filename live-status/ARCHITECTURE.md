@@ -9,6 +9,8 @@
   PSReadLine)                        parsers/shell.py ─► structure, difficulty tags ───────────┤
                                                                                                ▼
    labeling/teacher.py  (Haiku 4.5, two candidates per command, batched, resumable) ──► labels/teacher.jsonl
+   labeling/self_label.py (student samples k candidates, Jev selects and gates; no paid model)
+                                                                                  ──► labels/self_labels.jsonl
    judging/judge.py     (Haiku 4.5, separate prompt, scores teacher + heuristic candidates,
                          writes recommended_output)                               ──► labels/judged.jsonl
    dataset_build/build.py (accept / review / reject; MinHash families; frozen test) ──► datasets/<v>/*.jsonl
@@ -38,6 +40,12 @@
 - **Heuristic as fallback, not fast path.** The deterministic describer answers in under a millisecond, but its confidence ≥ 0.9 outputs cover only 8.7% of executions and the judge rated just 19% of them ≥ 80 (they are correct but generic: "Reviewing the Git diff." for `git diff --stat`). The service therefore always asks the model and uses the heuristic when the model fails, times out or produces an invalid sentence; `--fast-path` re-enables the shortcut.
 - **Plain completion format.** The student learns `Command:\n…\n\nStatus: <sentence>` with no system prompt, so each request costs only the command's tokens.
 - **Ollama/llama.cpp for serving.** It already runs on this machine, serves GGUF at every quantization level, and keeps models warm. `llama-server` is supported by the same backend interface.
+- **Jev selects what a local model wrote.** Jev cannot generate, but a Choice or Score returns
+  one of the options it was handed, so the student samples 4-5 candidates locally and Jev picks
+  one. On the v1 test set that beats greedy decoding by 8 points (77.4% vs 69.1%; oracle 83.9%),
+  which powers both `self_label` (free labelling, no paid model) and the service's `--best-of`
+  quality mode. Selection only helps when the candidates actually differ: choosing between two
+  near-identical teacher sentences matched the judge just 52% of the time.
 - **Haiku writes, jev grades, Opus audits.** Teacher and judge run on Haiku 4.5 with different
   prompts; label diversity comes from two candidates per command plus the heuristic. jev
   (TypeSafe System One) returns only probabilities, choices and scores, in milliseconds, at

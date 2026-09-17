@@ -21,6 +21,9 @@ python live-status/cli.py serve --backend ollama:live-status-v1-qwen3-06b-lora-q
 python live-status/api/client.py "git fetch origin && git status -sb"
 ```
 
+`--best-of 4` samples several candidates and lets jev pick the best: +8 points of quality for
+~1 s per request instead of ~0.1 s.
+
 `POST /v1/summarize-command` with `{"command": "...", "shell": "powershell", "cwd": "optional"}`
 returns `{"status": "..."}` (add `"debug": true` for source and latency). The service redacts
 before inference, caches by normalised command, bounds concurrency, falls back to a
@@ -36,6 +39,7 @@ Run from the repository root. GPU steps use the training venv (see TRAINING.md).
 | --- | --- |
 | Inventory transcript sources | `python live-status/cli.py inventory_sources` |
 | Extract, redact, deduplicate, report | `python live-status/cli.py extract_commands` |
+| Self-label (student + jev, free) | `python live-status/cli.py self_label --backend ollama:... --pool 8000` |
 | Teacher labels (Haiku) | `python live-status/cli.py generate_labels --limit 4000` |
 | Judge labels (Haiku) | `python live-status/cli.py judge_labels` |
 | Build splits | `python live-status/cli.py build_dataset --version v1` |
