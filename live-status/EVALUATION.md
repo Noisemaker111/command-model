@@ -47,6 +47,17 @@ A run is promoted into `evaluation/registry.json` only if nothing leaks, its acc
 least the current best, hallucination does not rise by more than a point, and it was graded
 by the same grader as the current best.
 
+## Service under load
+
+```powershell
+python live-status/benchmarks/service_load.py --url http://127.0.0.1:8765 --clients 8 --requests 240
+```
+
+Qwen3-0.6B q4_K_M behind the service, 8 concurrent clients, cache bypassed: 10.0 requests/s,
+p50 0.80 s, p99 1.00 s, no failures, 239/240 answered by the model and one by the fallback.
+Single-client latency is 0.10 s p50; the gap is queueing, since one Ollama runner serves the
+default concurrency of 4.
+
 ## Reports
 
 Each report includes validator rates, accepted %, invented/hallucination %, omission % (Opus),

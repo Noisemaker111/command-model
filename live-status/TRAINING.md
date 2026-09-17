@@ -62,6 +62,22 @@ For scale: Opus's own alternate (non-selected) candidates for the same 200 test 
 score 72.0% accepted under jev (86% under the Opus evaluator), so Qwen3-0.6B at 69.4% is
 close to the teacher's second-choice quality under the same grader.
 
+## Round 2: failure mining, more data, DPO (v1 test grown to 583 commands)
+
+The 89 commands added to test by round-1 mining are the previous model's own failures, so
+scores on the enlarged set are lower and only comparable within it.
+
+| Checkpoint | Train rows | Accepted | Invented | Same actions | p50 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Qwen3-0.6B q4_K_M (round 1) | 3,113 | 65.9% | 6.3% | 94.3% | 100 ms |
+| + round-1 corrections (`v1b`) | 3,628 | **68.8%** | 6.0% | 94.3% | 105 ms |
+| + DPO on 517 preference pairs | 3,628 | 68.6% | 6.3% | **96.1%** | 107 ms |
+
+Mining the model's own failures is worth ~3 points. DPO left acceptance flat while raising
+same-action agreement and the mean grade (0.548 → 0.559); it is kept as an optional stage.
+Preference pairs whose command later landed in test or validation are dropped automatically
+(148 of 665 here).
+
 ## Iteration loop
 
 ```
@@ -69,7 +85,7 @@ build_dataset -> train -> export_gguf -> evaluate (jev) -> mine_failures -> buil
 ```
 
 `mine_failures` runs the current student over unlabeled commands, ranks its outputs with
-jev, sends the weakest 40% (plus a random fifth as many) to the Opus teacher and judge,
-and appends (chosen, rejected) pairs to `labels/prefs.jsonl`. Round r1 (SmolLM2-135M, 1,500
-commands) sent 726 to the teacher; the judge stopped after 104 when the Opus subscription
-entered a cooldown, and resumes on rerun.
+jev, sends the weakest 40% (plus a random fifth as many) to the teacher and judge, and
+appends (chosen, rejected) pairs to `labels/prefs.jsonl`. Round r1 (SmolLM2-135M, 1,500
+commands) sent 726 to the teacher; judging finished on Haiku after the Opus subscription
+hit a cooldown. `mine_failures --rebuild-prefs` re-derives pairs from existing judgements.

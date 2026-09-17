@@ -7,9 +7,10 @@ Get-Process opencode2,node,powershell -ErrorAction SilentlyContinue | Select-Obj
 → Checking running opencode2, node, and powershell processes.
 ```
 
-Current best: **Qwen3-0.6B + LoRA, GGUF q4_K_M (397 MB)**, 67.8% of held-out statuses
-accepted by the grader (the teacher's own second choices score 72%), 100 ms p50 on an
-RTX 3070 and 393 ms on CPU only. Untuned models of the same size score at most 23.5%.
+Current best: **Qwen3-0.6B + LoRA, GGUF q4_K_M (397 MB)**, 68.8% of held-out statuses
+accepted by the grader (the teacher's own second choices score 72%), 105 ms p50 on an
+RTX 3070 and 393 ms on CPU only; behind the service, 10 requests/s with 8 clients. Untuned
+models of the same size score at most 23.5%.
 Details: [TRAINING.md](TRAINING.md), [EVALUATION.md](EVALUATION.md),
 [DATASET.md](DATASET.md), [ARCHITECTURE.md](ARCHITECTURE.md).
 
