@@ -5,3 +5,6 @@ work/
 .worktrees/
 experiments/command_model/js_parser/node_modules/
 *.log
+.env
+.env.*
+live-status/jev/node_modules/
