@@ -59,7 +59,7 @@ class Service:
     def summarize(self, command: str, shell: str | None, cwd: str | None) -> dict:
         t0 = time.perf_counter()
         red = redact(command[:MAX_COMMAND])
-        key = sha(f"{shell}|{normalize_ws(red)}")
+        key = sha(f"{shell}|{cwd}|{normalize_ws(red)}")
         with self.lock:
             hit = self.cache.get(key)
             if hit is not None:
@@ -69,12 +69,16 @@ class Service:
         h_text, h_conf = describe(red, shell)
         if (self.fast_path and h_conf >= FAST_PATH) or self.backend is None:
             return self._done(h_text, "heuristic" if h_conf >= FAST_PATH else "fallback", key, t0, cache=h_conf >= FAST_PATH)
-        status, source = None, "model"
+        status = None
+        source = getattr(self.backend, "source", "model")
         if self.slots.acquire(timeout=self.queue_wait):
             try:
                 model_in = red if len(red) <= MODEL_INPUT_CHARS else red[:MODEL_INPUT_CHARS] + " …"
-                status, _ = self.backend.generate(model_in)
-                if self.best_of > 1:
+                if getattr(self.backend, "accepts_cwd", False):
+                    status, _ = self.backend.generate(model_in, cwd=cwd)
+                else:
+                    status, _ = self.backend.generate(model_in)
+                if self.best_of > 1 and source == "model":
                     picked, source = self._best_of(model_in, status)
                     status = picked or status
             except Exception as exc:  # timeouts, backend down
@@ -197,7 +201,7 @@ def make_handler(service: Service, token: str | None, limiter: RateLimiter):
 def main(argv=None):
     p = argparse.ArgumentParser(prog="serve")
     p.add_argument("--backend", default=os.environ.get("LIVE_STATUS_BACKEND", "ollama:live-status"),
-                   help="ollama:<model> | llama-server:<url> | hf:<base>@<adapter> | none")
+                   help="parser:powershell | ollama:<model> | llama-server:<url> | hf:<base>@<adapter> | none")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--timeout", type=float, default=8.0)

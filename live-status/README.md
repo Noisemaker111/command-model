@@ -17,16 +17,33 @@ Details: [TRAINING.md](TRAINING.md), [EVALUATION.md](EVALUATION.md),
 ## Use it
 
 ```powershell
+python live-status/cli.py serve --backend parser:powershell --port 8765
 python live-status/cli.py serve --backend ollama:live-status-v1-qwen3-06b-lora-q4_k_m --port 8765
 python live-status/api/client.py "git fetch origin && git status -sb"
 ```
+
+`parser:powershell` is the CPU-only prototype. It uses PowerShell's own AST, maps only
+known commands, repeats unknown executable names literally, and abstains on malformed or
+dynamic invocation. When `cwd` is supplied, it can resolve a named test file and report its
+declared test purpose instead of restating the filename. It does not load a model or use the GPU.
+The recent-session result and
+its limitations are recorded in
+[the model sweep](research/2026-09-20-model-sweep.md#parser-first-powershell-prototype).
+
+An LLM may improve the linguistic mapping during development without joining the runtime path.
+`python live-status/linguistic_training.py simulate --output <file>` creates stable single,
+pair, and triple phrase combinations. `propose --route <provider-identity> --model
+<exact-user-selection> --output <file>` asks that explicitly selected CLIProxyAPI route and
+model for grounded wording proposals. Every proposal
+defaults to `accepted: false`; after review, `apply --input <file>` writes only accepted entries
+to `inference/linguistic_map.json`.
 
 `--best-of 4` samples several candidates and lets jev pick the best: +8 points of quality for
 ~1 s per request instead of ~0.1 s.
 
 `POST /v1/summarize-command` with `{"command": "...", "shell": "powershell", "cwd": "optional"}`
 returns `{"status": "..."}` (add `"debug": true` for source and latency). The service redacts
-before inference, caches by normalised command, bounds concurrency, falls back to a
+before inference, caches by shell, working directory, and normalised command, bounds concurrency, falls back to a
 deterministic describer on timeout or invalid output, and never logs commands. For remote use
 set `LIVE_STATUS_API_TOKEN` and pass `--tls-cert/--tls-key`; a non-loopback bind without a
 token is refused. `api/client.py` works unchanged against `https://my-server.example`.
