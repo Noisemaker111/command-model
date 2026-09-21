@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
 from inference.backends import from_spec
 from inference.parser_first import ABSTENTION, PowerShellAstBackend, render
@@ -45,6 +47,66 @@ class ParserFirstTests(unittest.TestCase):
         self.assertTrue(metrics["literal_fallback"])
         self.assertFalse(metrics["fully_mapped"])
 
+    def test_bun_test_names_the_test_instead_of_the_runtime(self):
+        status, metrics = render({
+            "ok": True,
+            "errors": [],
+            "nodes": [command(
+                "bun", "test", "--timeout", "90000",
+                "test/codex-quest-dev-installer.test.ts",
+            )],
+        })
+        self.assertEqual(
+            status, "Running the codex quest dev installer tests."
+        )
+        self.assertTrue(metrics["fully_mapped"])
+
+    def test_bun_test_resolves_grounded_intent_from_cwd(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "installer.test.ts"
+            target.write_text(
+                "test('every install creates a sealed version without deleting "
+                "the old one', async () => {})\n",
+                encoding="utf-8",
+            )
+            status, metrics = render(
+                {
+                    "ok": True,
+                    "errors": [],
+                    "nodes": [command("bun", "test", "installer.test.ts")],
+                },
+                cwd=directory,
+            )
+        self.assertEqual(
+            status,
+            "Testing that every install creates a sealed version without "
+            "deleting the old one.",
+        )
+        self.assertIn("context_evidence", metrics["facts"][0])
+        self.assertEqual(metrics["context_actions"], 1)
+
+    def test_invalid_cwd_falls_back_without_failing(self):
+        status, metrics = render({
+            "ok": True, "errors": [],
+            "nodes": [command("bun", "test", "installer.test.ts")],
+        }, cwd="Z:/a-directory-that-does-not-exist")
+        self.assertEqual(status, "Running the installer tests.")
+        self.assertEqual(metrics["context_actions"], 0)
+
+    def test_file_and_python_commands_keep_grounded_targets(self):
+        status, _ = render({
+            "ok": True, "errors": [],
+            "nodes": [command(
+                "Get-Content", "-Raw", "-LiteralPath", "local-session.json"
+            )],
+        })
+        self.assertEqual(status, "Reading local-session.json.")
+        status, _ = render({
+            "ok": True, "errors": [],
+            "nodes": [command("python", "tools/audit_failures.py", "--help")],
+        })
+        self.assertEqual(status, "Running audit_failures.py with Python.")
+
     def test_long_sequence_is_bounded_by_parsed_step_count(self):
         nodes = [
             command("Get-Content"), command("Select-String"),
@@ -73,7 +135,7 @@ class ParserFirstTests(unittest.TestCase):
         finally:
             backend.close()
         self.assertEqual(
-            status, "Reading a file, searching text, and checking Git status."
+            status, "Reading README.md, searching text, and checking Git status."
         )
         self.assertEqual(metrics["mapped_actions"], 3)
         self.assertFalse(metrics["abstained"])

@@ -59,7 +59,7 @@ class Service:
     def summarize(self, command: str, shell: str | None, cwd: str | None) -> dict:
         t0 = time.perf_counter()
         red = redact(command[:MAX_COMMAND])
-        key = sha(f"{shell}|{normalize_ws(red)}")
+        key = sha(f"{shell}|{cwd}|{normalize_ws(red)}")
         with self.lock:
             hit = self.cache.get(key)
             if hit is not None:
@@ -74,7 +74,10 @@ class Service:
         if self.slots.acquire(timeout=self.queue_wait):
             try:
                 model_in = red if len(red) <= MODEL_INPUT_CHARS else red[:MODEL_INPUT_CHARS] + " …"
-                status, _ = self.backend.generate(model_in)
+                if getattr(self.backend, "accepts_cwd", False):
+                    status, _ = self.backend.generate(model_in, cwd=cwd)
+                else:
+                    status, _ = self.backend.generate(model_in)
                 if self.best_of > 1 and source == "model":
                     picked, source = self._best_of(model_in, status)
                     status = picked or status

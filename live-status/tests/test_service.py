@@ -29,6 +29,14 @@ class FakeBackend:
         return self.reply, {}
 
 
+class CwdBackend(FakeBackend):
+    source = "parser"
+    accepts_cwd = True
+
+    def generate(self, command, *, cwd=None):
+        return f"Using {cwd}.", {}
+
+
 def post(url, body, token=None):
     headers = {"Content-Type": "application/json"}
     if token:
@@ -79,6 +87,12 @@ class ServiceTests(unittest.TestCase):
         with mock.patch.object(service, "_best_of", side_effect=AssertionError("model-only")):
             out = service.summarize("git status", "powershell", None)
         self.assertEqual((out["status"], out["source"]), ("Checking Git status.", "parser"))
+
+    def test_context_backend_receives_cwd(self):
+        out = server.Service(CwdBackend("unused"), cache_size=0).summarize(
+            "git status", "powershell", "C:/repo"
+        )
+        self.assertEqual((out["status"], out["source"]), ("Using C:/repo.", "parser"))
 
 
 if __name__ == "__main__":

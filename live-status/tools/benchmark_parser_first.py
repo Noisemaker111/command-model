@@ -40,7 +40,7 @@ def main() -> None:
     try:
         backend.warm()
         for row in rows:
-            status, metrics = backend.generate(row["command"])
+            status, metrics = backend.generate(row["command"], cwd=row.get("cwd"))
             outputs.append({
                 "id": row.get("id"), "session": row.get("session"),
                 "complexity": row.get("complexity"), "tags": row.get("tags"),
@@ -56,6 +56,8 @@ def main() -> None:
     literal = sum(item["metrics"]["literal_fallback"] for item in outputs)
     abstained = sum(item["metrics"]["abstained"] for item in outputs)
     mapped = sum(item["metrics"]["mapped_actions"] > 0 for item in outputs)
+    contextual = sum(item["metrics"]["context_actions"] > 0 for item in outputs)
+    rows_with_cwd = sum(bool(row.get("cwd")) for row in rows)
     evidence = sum(
         bool(item["metrics"]["facts"])
         and all(fact["evidence"] for fact in item["metrics"]["facts"])
@@ -80,6 +82,8 @@ def main() -> None:
         "literal_fallback_pct": pct(literal),
         "abstention_pct": pct(abstained),
         "mapped_action_coverage_pct": pct(mapped),
+        "context_resolved_pct": pct(contextual),
+        "rows_with_cwd": rows_with_cwd,
         "evidence_grounded_pct": pct(evidence),
         "validator_pass_pct": pct(validator),
         "latency_ms": {
@@ -92,6 +96,7 @@ def main() -> None:
             "Mapped coverage and grounding are mechanical measurements, not human-rated semantic accuracy.",
             "The prototype handles PowerShell only.",
             "Literal fallback repeats an AST-proven executable name without claiming its purpose.",
+            "Context resolution can only be measured on rows that retain their working directory.",
         ],
     }
     with (args.out / "outputs.jsonl").open("w", encoding="utf-8") as handle:

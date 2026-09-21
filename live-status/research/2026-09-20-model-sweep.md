@@ -139,18 +139,24 @@ show three distinct actions and the exact number of remaining parsed steps.
 | Fully mapped output | 84.2% |
 | Literal executable fallback | 13.3% |
 | Abstention | 2.5% |
+| Rows retaining working directory / context resolved | 0 / 0 |
 | Output facts with AST evidence | 97.5% |
 | Deterministic validator pass | 100.0% |
-| CPU latency p50 / p90 / max | 3.25 / 5.05 / 13.63 ms |
+| CPU latency p50 / p90 / max | 2.75 / 4.49 / 10.13 ms |
 
-These are coverage and grounding measurements, not a claim of 97.5% semantic accuracy. A
-30-row stratified manual audit found no unsupported rendered action; 26 rows were useful as a
-live status, while three deliberate abstentions and one plumbing-dominated summary were safe
-but unhelpful. That 86.7% usefulness observation is an exploratory audit on one workload, not
-a promotion result. The prototype is worth continuing as a PowerShell path because it is
-roughly forty times faster than the current model's 140 ms p50, consumes no GPU, and removes
-free-form invention. It does not solve Bash, infer the purpose of unknown tools, or reliably
-identify the user's primary intent in long orchestration cells.
+These are coverage and grounding measurements, not semantic accuracy. The earlier 30-row audit
+that called 26 outputs useful is invalid: its rubric counted executable or filename restatements
+as useful even when they did not explain the operation. The frozen sample also omitted working
+directories, so it cannot measure the new context resolver. Human usefulness is therefore
+unmeasured until a held-out set captures command, working directory, and expected purpose.
+
+The context resolver now follows a Bun test target inside the supplied working directory and
+uses a unique declared test name as evidence. For `bun test --timeout 90000
+test/codex-quest-dev-installer.test.ts`, the grounded output is “Testing that every development
+install advances, seals and adds a new cache version without removing the old one.” The runtime
+still does not solve Bash, infer opaque tools, or reliably identify the primary intent in long
+orchestration cells. Linguistic improvements are trained outside runtime: an explicitly selected
+LLM reviews simulated mapping combinations, and only human-accepted proposals change the map.
 
 Weight pruning comes after semantic parity. Removing generic-domain weights without retraining can destroy useful syntax and language behavior, and zeroed weights do not guarantee lower latency in Ollama/llama.cpp. Quantizing the smaller dense base already produced the useful size and latency gain. If semantic grading passes and further compression is needed, distill the structured task into a smaller student and compare quantization-aware training before structured pruning.
 Relevant pruning evidence: [Iterative Structured Pruning with Multi-Domain Calibration](https://arxiv.org/abs/2601.02674) argues for hardware-friendly structured removal and mixed-domain calibration; [GPrune-LLM](https://arxiv.org/abs/2603.13418) shows that single-domain calibration can bias neuron importance; [Pruning as a Domain-specific LLM Extractor](https://arxiv.org/abs/2405.06275) supports task-calibrated pruning but does not establish that arbitrary out-of-domain weights can be safely deleted from a sub-1B model.
