@@ -230,7 +230,9 @@ def analyze(command: str, shell_hint: str | None = None) -> Structure:
     lower = body.lower()
     st = Structure(shell=shell, actions=[], pipelines=pipes, segments=len(segments))
     st.loops = len(re.findall(r"\b(for|foreach|while|until)\b\s*[\s(${]", lower)) + lower.count("foreach-object") + len(re.findall(r"\|\s*%\s*\{", lower))
-    st.conditionals = len(re.findall(r"\b(if|elif|elseif|case|switch)\b\s*[\s(\[]", lower))
+    st.conditionals = len(re.findall(r"\b(if|elif|elseif)\b\s*[\s(\[]", lower))
+    st.conditionals += len(re.findall(r"\bcase\b[^\n;]*\bin\b", lower))
+    st.conditionals += len(re.findall(r"\bswitch\b(?:\s+-[\w:]+)*\s*\(", lower))
     st.has_heredoc = body != command
     st.has_inline_script = bool(re.search(r"\b(python3?|py|node|bun|deno)\s+(-c|-e|--eval|-)(\s|$)|\bpython3?\s*-\s*<<", command))
     for seg in segments:

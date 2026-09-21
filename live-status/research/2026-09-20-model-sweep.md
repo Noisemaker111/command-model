@@ -10,7 +10,7 @@ The CPU leaderboard measures unquantized base-model prefill, decode, and WikiTex
 
 | Model | HF created | Parameters | CPU prefill tok/s | CPU decode tok/s | WikiText-2 PPL | Decision |
 |---|---:|---:|---:|---:|---:|---|
-| Qwen/Qwen3.5-0.8B | 2026-02-28 | 873M | 40.6 | 7.1 | 25.44 | Quality candidate; test and fine-tune |
+| Qwen/Qwen3.5-0.8B | 2026-02-28 | 873M | 40.6 | 7.1 | 25.44 | Reject for Live Status: larger, slower, and semantically worse |
 | LiquidAI/LFM2.5-350M-Base | 2026-03-31 | 354M | 84.5 | 13.6 | 193.31 | Speed candidate; fine-tune before judging task quality |
 | LiquidAI/LFM2.5-230M-Base | 2026-06-16 | 230M | 127.4 | 19.3 | 222.30 | Extreme-size candidate; only continue if structured task training works |
 | HuggingFaceTB/nanowhale-100m-base | 2026-04-24 | 110M | 1820.5 | 34.0 | unavailable | Reject for now: its general benchmark scores are near chance and perplexity failed |
@@ -42,7 +42,17 @@ The full 587-row held-out set was run locally through the installed Ollama qwen3
 | Raw command + few-shot chat | 97.3% | 40.2% | 99.7% | 225 ms | 301 ms | 136.4 tok/s |
 | Mechanical parse + raw command + same examples | 98.6% | 85.9% | 100.0% | 219 ms | 294 ms | 135.5 tok/s |
 
-The structured input improved target recall by 45.7 percentage points with no latency penalty, but target recall is computed for only 46 of 587 rows (7.8%): simple commands where the parser exposes one salient target. This is evidence that parser hints help name preservation, not a whole-set accuracy result. Reference-overlap checks across the full set remain weaker than the trained Qwen3 0.6B model, so Qwen3.5 0.8B is not a replacement without fine-tuning. Its installed artifact and measured residency are about 1.06 GB, versus 655 MB for the current quantized model.
+The structured input improved target recall by 45.7 percentage points with no latency penalty, but target recall is computed for only 46 of 587 rows (7.8%): simple commands where the parser exposes one salient target. This is evidence that parser hints help name preservation, not a whole-set accuracy result. Whole-set lexical F1 is 0.251, versus 0.525 for the trained Qwen3 0.6B model. Every difficulty tag with at least ten rows regressed; the largest gaps were sidechains (-0.331), injection-like text (-0.323), malformed input (-0.277), JavaScript cells (-0.274), and pipelines (-0.269). Its installed artifact and measured residency are about 1.06 GB, versus 655 MB for the current quantized model.
+
+A blinded local judge sampled 48 of the 583 rows common to both complete runs:
+
+| Local Qwen3 8B judge | Same actions | Invented | Mean quality (0-4) | Strict pass |
+|---|---:|---:|---:|---:|
+| Current Qwen3 0.6B Q4_K_M | 77.1% | 10.4% | 2.646 | 75.0% |
+| Qwen3.5 0.8B structured | 31.2% | 43.8% | 1.667 | 31.2% |
+| Reference control | 100.0% | 0.0% | 3.083 | 100.0% |
+
+The judge preferred the current model on 18 rows, Qwen3.5 on 3, and tied 27. Qwen3.5 is 62% larger in measured residency and 2.1 times slower at p50 while inventing actions four times as often in this screen, so it is rejected for the cheap Live Status path without a fine-tuning run.
 
 ## Local evaluation limits found
 
@@ -79,7 +89,25 @@ The judge preferred the current model on 13 rows, the candidate on 3, and tied 3
 
 ## Architecture experiment
 
-The raw-command formulation asks a small model to parse shell syntax, resolve action order, copy names, ignore injection-like strings, and write polished prose in one unconstrained generation. The repository already performs much of the parsing deterministically. Structured training made the 350M model viable on size and speed, but it did not reach the current model's whole-set lexical signal. A deterministic final renderer for recognized actions remains the next architectural experiment after semantic grading.
+The raw-command formulation asks a small model to parse shell syntax, resolve action order, copy names, ignore injection-like strings, and write polished prose in one unconstrained generation. The repository already performs much of the parsing deterministically. Structured training made the 350M model viable on size and speed, but it did not reach the current model's whole-set lexical signal.
+
+### Deterministic renderer result
+
+An all-or-nothing renderer was tested on the parsed action sequence. It rejected control flow, heredocs, embedded programs, unknown actions, and partially supported sequences. It rendered 184 of 587 held-out commands (31.3%) in 0.644 ms per input; all rendered sentences passed the deterministic format validator. Their mean lexical F1 against the vetted reference was 0.351.
+
+The same blinded local judge then sampled 48 of the 182 rows common to the renderer and current-model runs:
+
+| Local Qwen3 8B judge | Same actions | Invented | Mean quality (0-4) | Strict pass |
+|---|---:|---:|---:|---:|
+| Current Qwen3 0.6B Q4_K_M | 77.1% | 12.5% | 2.875 | 75.0% |
+| Deterministic renderer | 37.5% | 18.8% | 1.958 | 35.4% |
+| Reference control | 100.0% | 0.0% | 3.250 | 100.0% |
+
+The judge preferred the current model on 17 rows, the renderer on 3, and tied 28. Passing the sentence validator did not establish semantic completeness: target extraction frequently assigned a file, process, or argument to the wrong action. The runtime renderer was removed. The experiment did expose and fix an independent parser bug where `git switch` was counted as PowerShell control flow.
+
+### Public service boundary
+
+The final smoke test started the public `cli.py serve` command with the current Ollama model, submitted one Bash request and one PowerShell request, stopped the service, and reopened its JSONL log. The PowerShell `switch` request was summarized correctly. For `git fetch origin && git switch feature/status`, the model returned "Fetching from origin, then creating and switching to the feature/status branch." The command does not contain `-c`; branch creation is an invented action. Both reopened records were model-sourced and omitted the raw command as designed. This observed miss agrees with the semantic screen: the current model remains the best tested option, but it is not yet trustworthy on every command.
 
 Weight pruning comes after semantic parity. Removing generic-domain weights without retraining can destroy useful syntax and language behavior, and zeroed weights do not guarantee lower latency in Ollama/llama.cpp. Quantizing the smaller dense base already produced the useful size and latency gain. If semantic grading passes and further compression is needed, distill the structured task into a smaller student and compare quantization-aware training before structured pruning.
 Relevant pruning evidence: [Iterative Structured Pruning with Multi-Domain Calibration](https://arxiv.org/abs/2601.02674) argues for hardware-friendly structured removal and mixed-domain calibration; [GPrune-LLM](https://arxiv.org/abs/2603.13418) shows that single-domain calibration can bias neuron importance; [Pruning as a Domain-specific LLM Extractor](https://arxiv.org/abs/2405.06275) supports task-calibrated pruning but does not establish that arbitrary out-of-domain weights can be safely deleted from a sub-1B model.
