@@ -77,8 +77,9 @@ class RecentSessionBenchmarkTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "judged.jsonl"
             with patch("tools.benchmark_recent_sessions.run_batch", return_value=[result]) as run:
-                self.assertEqual(judge([item], "judge", 8, 1, path), [result])
-                self.assertEqual(judge([item], "judge", 8, 1, path), [result])
+                expected = dict(result, judge_route="test-route", judge_key="judge|route=test-route")
+                self.assertEqual(judge([item], "judge", "test-route", 8, 1, path), [expected])
+                self.assertEqual(judge([item], "judge", "test-route", 8, 1, path), [expected])
             self.assertEqual(run.call_count, 1)
 
     def test_wilson_interval_contains_observed_rate(self):

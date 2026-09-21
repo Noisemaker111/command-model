@@ -1,4 +1,4 @@
-"""Judge pass: an independent Opus 5 prompt scores every candidate and writes the final label.
+"""Judge pass: an explicitly selected independent model scores every candidate.
 
 Candidates per command: teacher "a"/"b" (and regenerated ones) plus the deterministic
 heuristic. Output: labels/judged.jsonl, one row per (command, candidate-set).

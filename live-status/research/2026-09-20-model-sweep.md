@@ -111,7 +111,9 @@ The final smoke test started the public `cli.py serve` command with the current 
 
 ### Recent-session out-of-time benchmark
 
-The new benchmark extracted commands from six later Codex sessions, redacted and secret-scanned them, removed duplicates and known v1 templates, then froze a balanced 120-row sample before inference. The initial extraction found 557 novel commands. The frozen sample is all PowerShell and is intentionally harder than the old test set: 68 complex, 38 moderate, and 14 simple rows; 98 contain chained operations and 62 contain pipelines. Candidate identities were permuted independently per row. With the user''s explicit permission, the redacted sample was judged through the configured OpenCode Go gateway by `claude-opus-5`; no recent-session command was sent before that permission. This is model-judged accuracy on one recent workload, not a human-audited universal rate.
+The new benchmark extracted commands from six later Codex sessions, redacted and secret-scanned them, removed duplicates and known v1 templates, then froze a balanced 120-row sample before inference. The initial extraction found 557 novel commands. The frozen sample is all PowerShell and is intentionally harder than the old test set: 68 complex, 38 moderate, and 14 simple rows; 98 contain chained operations and 62 contain pipelines. Candidate identities were permuted independently per row.
+
+Correction: the judge request was sent to CLIProxyAPI with model `claude-opus-5`. CLIProxyAPI is transport used by OpenCode, but OpenCode Go is a separate provider. Proxy routing evidence shows `provider=claude` and the Claude account credential, so this run consumed Claude quota and was not an OpenCode Go or OpenRouter run. The results below are Claude-judged. The benchmark now requires an explicit judge-route identity and keys checkpoints by both route and model so results from different providers cannot be silently reused or mislabeled. This is model-judged accuracy on one recent workload, not a human-audited universal rate.
 
 | Model | Strict pass (95% Wilson interval) | Invented | Omitted | Preferred | p50 |
 |---|---:|---:|---:|---:|---:|

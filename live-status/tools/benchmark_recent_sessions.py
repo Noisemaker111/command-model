@@ -38,6 +38,8 @@ def parse_args(argv=None):
     p.add_argument("--sample", type=int, required=True)
     p.add_argument("--backend", action="append", required=True, metavar="NAME=SPEC")
     p.add_argument("--judge-model", required=True)
+    p.add_argument("--judge-route", required=True,
+                   help="Explicit provider/account route used for the judge (for provenance)")
     p.add_argument("--judge-batch", type=int, default=8)
     p.add_argument("--judge-workers", type=int, default=3)
     p.add_argument("--out", type=Path, required=True)
@@ -178,9 +180,14 @@ def blinded_items(rows: list[dict], model_names: list[str]) -> tuple[list[dict],
     return items, maps
 
 
-def judge(items: list[dict], model: str, batch_size: int, workers: int,
+def routed_judge_key(model: str, route: str) -> str:
+    return f"{judge_key(model)}|route={route}"
+
+
+def judge(items: list[dict], model: str, route: str, batch_size: int, workers: int,
           checkpoint: Path) -> list[dict]:
-    saved = [row for row in read_jsonl(checkpoint) if row.get("judge_key") == judge_key(model)] \
+    key = routed_judge_key(model, route)
+    saved = [row for row in read_jsonl(checkpoint) if row.get("judge_key") == key] \
         if checkpoint.exists() else []
     done = {(row.get("id"), row.get("cand_hash")) for row in saved if not row.get("missing")}
     pending = [item for item in items if (item["id"], item["cand_hash"]) not in done]
@@ -196,6 +203,9 @@ def judge(items: list[dict], model: str, batch_size: int, workers: int,
             except Exception as exc:
                 failures.append(exc)
                 continue
+            for row in result:
+                row["judge_route"] = route
+                row["judge_key"] = key
             with lock:
                 append_jsonl(checkpoint, result)
                 judged.extend(result)
@@ -281,7 +291,8 @@ def main(argv=None):
     outputs = generate(rows, specs, args.out / "generation-checkpoint.jsonl")
     write_jsonl(args.out / "outputs.jsonl", outputs)
     items, maps = blinded_items(outputs, list(specs))
-    judgments = judge(items, args.judge_model, args.judge_batch, args.judge_workers,
+    judgments = judge(items, args.judge_model, args.judge_route,
+                      args.judge_batch, args.judge_workers,
                       args.out / "judgments.jsonl")
     report = {
         "collection": collection,
@@ -290,7 +301,8 @@ def main(argv=None):
                    "complexity": dict(collections.Counter(row["complexity"] for row in rows)),
                    "shells": dict(collections.Counter(row["shell"] for row in rows))},
         "judge_model": args.judge_model,
-        "judge_key": judge_key(args.judge_model),
+        "judge_route": args.judge_route,
+        "judge_key": routed_judge_key(args.judge_model, args.judge_route),
         "models": summarize(outputs, judgments, maps, specs),
     }
     save_json(args.out / "summary.json", report)
