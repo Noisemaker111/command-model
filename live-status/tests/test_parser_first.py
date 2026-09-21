@@ -110,6 +110,46 @@ class ParserFirstTests(unittest.TestCase):
         })
         self.assertEqual(status, "Running audit_failures.py with Python.")
 
+    def test_actual_agent_commands_keep_operational_targets(self):
+        cases = [
+            (
+                [command("python", "-m", "unittest", "discover", "-s", "live-status/tests", "-t", "live-status", "-v")],
+                "Running Python unit tests discovered in live-status/tests with verbose output.",
+            ),
+            (
+                [command("python", "-m", "compileall", "-q", "live-status", "scripts", "skills", "experiments/command_model")],
+                "Compiling Python files in live-status, scripts, skills, and experiments/command_model.",
+            ),
+            (
+                [command("gh", "run", "watch", "35556852505", "--interval", "10", "--exit-status")],
+                "Watching GitHub Actions run 35556852505 every 10 seconds.",
+            ),
+            (
+                [command("Get-Content", "-LiteralPath", "README.md"), command("Select-String", "-Pattern", "parser")],
+                "Reading README.md and searching text for parser.",
+            ),
+        ]
+        for nodes, expected in cases:
+            with self.subTest(expected=expected):
+                status, metrics = render({"ok": True, "errors": [], "nodes": nodes})
+                self.assertEqual(status, expected)
+                self.assertTrue(metrics["fully_mapped"])
+
+    def test_git_sequence_keeps_files_message_remote_and_branch(self):
+        status, _ = render({
+            "ok": True,
+            "errors": [],
+            "nodes": [
+                command("git", "add", "--", "live-status/inference/parser_first.py", "live-status/tests/test_parser_first.py"),
+                command("git", "commit", "-m", "Include Bun timeout"),
+                command("git", "push", "origin", "feature/parser-first-prototype-20260920"),
+            ],
+        })
+        self.assertEqual(
+            status,
+            "Staging parser_first.py and test_parser_first.py, committing the staged changes as Include Bun timeout, and pushing branch feature/parser-first-prototype-20260920 to origin.",
+        )
+
     def test_long_sequence_is_bounded_by_parsed_step_count(self):
         nodes = [
             command("Get-Content"), command("Select-String"),

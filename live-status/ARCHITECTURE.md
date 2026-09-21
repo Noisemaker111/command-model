@@ -47,6 +47,10 @@
   in simulated combinations and asks an explicitly selected LLM for proposals; only reviewed,
   accepted phrases enter `linguistic_map.json`. Coverage and grounding are reported separately
   from human usefulness.
+  The product target is the actual command cells agents execute: test runners, Python modules
+  and scripts, file searches, Git/GitHub operations, and their meaningful targets and settings.
+  A passing mapping must retain those details; naming only the executable is a fallback, not a
+  useful result. Bash needs its own parser and is not covered by this PowerShell prototype.
 - **Heuristic as fallback, not fast path.** The deterministic describer answers in under a millisecond, but its confidence ≥ 0.9 outputs cover only 8.7% of executions and the judge rated just 19% of them ≥ 80 (they are correct but generic: "Reviewing the Git diff." for `git diff --stat`). The service therefore always asks the model and uses the heuristic when the model fails, times out or produces an invalid sentence; `--fast-path` re-enables the shortcut.
 - **Plain completion format.** The student learns `Command:\n…\n\nStatus: <sentence>` with no system prompt, so each request costs only the command's tokens.
 - **Ollama/llama.cpp for serving.** It already runs on this machine, serves GGUF at every quantization level, and keeps models warm. `llama-server` is supported by the same backend interface.

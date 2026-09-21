@@ -199,6 +199,10 @@ def _join_words(values: list[str]) -> str:
     return ", ".join(values[:-1]) + f", and {values[-1]}"
 
 
+def _positional_values(args: list[str], options_with_values: set[str]) -> list[str]:
+    return _option_values(args, {value.lower() for value in options_with_values})
+
+
 def _resolved_file(cwd: str | None, target: str) -> Path | None:
     if not cwd or target.startswith(("$", "@", "{", "(")):
         return None
@@ -307,6 +311,17 @@ def _describe_runtime(name: str, elements: list[str]) -> tuple[str, bool]:
             return f"running {targets[0]} with Bun", True
     if name in ("python", "python.exe", "python3"):
         if len(args) >= 2 and args[0] == "-m":
+            module = args[1].lower()
+            module_args = args[2:]
+            if module == "unittest":
+                search = _option_value(module_args, "-s")
+                location = f" discovered in {search}" if search else ""
+                verbose = " with verbose output" if "-v" in module_args or "--verbose" in module_args else ""
+                return f"running Python unit tests{location}{verbose}", True
+            if module == "compileall":
+                targets = _positional_values(module_args, {"-d", "-ddir", "-j", "-o", "-p", "-s"})
+                if targets:
+                    return f"compiling Python files in {_join_words(targets)}", True
             return f"running {args[1]} with Python", True
         targets = _option_values(args, {"-W", "-X"})
         if targets and targets[0] not in ("-c", "-"):
@@ -343,12 +358,35 @@ def _describe(node: dict[str, Any]) -> tuple[str | None, bool]:
     if name == "git":
         args = _subcommands(elements)
         if args:
+            raw_args = [_clean(item) for item in elements[2:]]
+            if args[0] == "status" and any(item in raw_args for item in ("-b", "--branch")):
+                return "checking Git status and branch", True
+            if args[0] == "add":
+                targets = [value for value in raw_args if value != "--" and not value.startswith("-")]
+                labels = [label for value in targets if (label := _file_name(value))]
+                if labels:
+                    return f"staging {_join_words(labels)}", True
+            if args[0] == "commit":
+                message = _option_value(raw_args, "-m") or _option_value(raw_args, "--message")
+                if message:
+                    return f"committing the staged changes as {message}", True
+            if args[0] == "push":
+                targets = [value for value in raw_args if not value.startswith("-")]
+                if len(targets) >= 2:
+                    return f"pushing branch {targets[1]} to {targets[0]}", True
             fallback = _GIT_ACTIONS.get(args[0], f"running git {args[0]}")
             return mapped_phrase(f"git:{args[0]}", fallback), args[0] in _GIT_ACTIONS
         return "running Git", False
     if name == "gh":
         args = _subcommands(elements)
         pair = tuple(args[:2])
+        if pair == ("run", "watch"):
+            raw_args = [_clean(item) for item in elements[3:]]
+            run_id = next((item for item in raw_args if not item.startswith("-")), None)
+            interval = _option_value(raw_args, "--interval")
+            if run_id:
+                timing = f" every {interval} seconds" if interval and interval.isdigit() else ""
+                return f"watching GitHub Actions run {run_id}{timing}", True
         if pair in _GH_ACTIONS:
             key = " ".join(pair)
             return mapped_phrase(f"gh:{key}", _GH_ACTIONS[pair]), True
@@ -357,6 +395,10 @@ def _describe(node: dict[str, Any]) -> tuple[str | None, bool]:
         return mapped_phrase("command:rg", "searching text"), True
     if name == "curl":
         return mapped_phrase("command:curl", "making an HTTP request"), True
+    if name == "select-string":
+        pattern = _option_value(elements[1:], "-pattern")
+        if pattern:
+            return f"searching text for {pattern}", True
     if name == "get-content":
         args = elements[1:]
         targets = _option_values(
