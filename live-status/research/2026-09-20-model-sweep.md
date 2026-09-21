@@ -63,7 +63,19 @@ The structured LoRA run trained 0.98M parameters for three epochs on an RTX 3070
 | LFM2.5 350M Q8_0 | 437 MB | 90 ms | 425.1 | 99.3% | 0.837 | 0.418 |
 | LFM2.5 350M Q4_K_M | 287 MB | 85 ms | 475.6 | 98.8% | 0.859 | 0.393 |
 
-The Q8 GGUF file is 379 MB and the Q4_K_M file is 229 MB. Q8 preserves the merged model's local lexical signal while reducing measured residency 33% and p50 latency 14% versus the current model. Q4 is smaller and faster but loses more reference overlap. The 350M Q8 candidate advances to independent semantic grading; it does not replace the current model based on local validators. Do not spend a run on LFM2.5 230M until the 350M candidate clears the action-agreement and invention gates.
+The Q8 GGUF file is 379 MB and the Q4_K_M file is 229 MB. Q8 preserves the merged model's local lexical signal while reducing measured residency 33% and p50 latency 14% versus the current model. Q4 is smaller and faster but loses more reference overlap. Do not spend a run on LFM2.5 230M until the 350M candidate clears the action-agreement and invention gates.
+
+### Private local semantic screen
+
+A blinded paired screen used the installed Qwen3 8B model as a local judge on 48 of the 583 rows common to both runs. Candidate assignment was deterministically swapped between A and B (25/23), and the vetted reference was repeated as a control. The control passed the strict rubric on 97.9% of rows, which catches gross judge failures. This screen is a promotion rejection test, not an accuracy estimate and not directly comparable to Jev's absolute rates.
+
+| Local Qwen3 8B judge | Same actions | Invented | Mean quality (0-4) | Strict pass |
+|---|---:|---:|---:|---:|
+| Current Qwen3 0.6B Q4_K_M | 75.0% | 18.8% | 2.500 | 75.0% |
+| LFM2.5 350M Q8_0 | 56.2% | 37.5% | 2.125 | 56.2% |
+| Reference control | 97.9% | 0.0% | 3.125 | 97.9% |
+
+The judge preferred the current model on 13 rows, the candidate on 3, and tied 32. On the strict paired threshold, 14 rows passed only for current and 5 only for the candidate; the candidate-minus-current difference was -18.8 percentage points (paired bootstrap 95% interval -35.4 to -2.1; exact McNemar p=0.064). Together with the lower whole-set lexical signal, this rejects promotion of the 350M candidate without sending the private test set to an external grader.
 
 ## Architecture experiment
 
