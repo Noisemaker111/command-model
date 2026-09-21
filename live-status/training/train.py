@@ -32,7 +32,7 @@ def parse(argv):
     p.add_argument("--extra", type=Path, action="append", default=[], help="additional train JSONL (command,status)")
     p.add_argument("--name", required=True)
     p.add_argument("--method", choices=["lora", "full"], default="lora")
-    p.add_argument("--prompt", choices=["plain", "instruct", "mixed"], default="plain")
+    p.add_argument("--prompt", choices=["plain", "instruct", "mixed", "structured"], default="plain")
     p.add_argument("--epochs", type=float, default=3)
     p.add_argument("--lr", type=float)
     p.add_argument("--batch", type=int, default=16)
@@ -57,10 +57,13 @@ def load_rows(a) -> tuple[list[dict], list[dict]]:
     return train, val
 
 
-def encode(tok, command: str, status: str, instruct: bool, max_len: int):
-    prompt = tok(student_prompt(command, instruct=instruct), add_special_tokens=True).input_ids
+def encode(tok, command: str, status: str, instruct: bool, max_len: int, *, structured: bool = False):
+    prompt = tok(student_prompt(command, instruct=instruct, structured=structured), add_special_tokens=True).input_ids
     target = tok(" " + status.strip(), add_special_tokens=False).input_ids + [tok.eos_token_id]
-    prompt = prompt[-(max_len - len(target)):]
+    budget = max_len - len(target)
+    if len(prompt) > budget:
+        head = int(budget * 0.7)
+        prompt = prompt[:head] + prompt[-(budget - head):]
     return prompt + target, [-100] * len(prompt) + target
 
 
@@ -187,8 +190,10 @@ def main(argv=None):
             reps = 1 if a.no_weights else max(1, round(r.get("weight", 1)))
             for k in range(reps):
                 instruct = a.prompt == "instruct" or (a.prompt == "mixed" and rng.random() < 0.3)
-                items.append(encode(tok, r["command"], r["status"], instruct, a.max_len))
-        vitems = [encode(tok, r["command"], r["status"], a.prompt == "instruct", a.max_len) for r in val]
+                items.append(encode(tok, r["command"], r["status"], instruct, a.max_len,
+                                    structured=a.prompt == "structured"))
+        vitems = [encode(tok, r["command"], r["status"], a.prompt == "instruct", a.max_len,
+                         structured=a.prompt == "structured") for r in val]
         steps = math.ceil(len(items) / a.batch * a.epochs)
         sched = get_cosine_schedule_with_warmup(opt, max(1, steps // 20), steps)
         print(json.dumps({"train_rows": len(train), "train_items": len(items), "val": len(vitems), "steps": steps,

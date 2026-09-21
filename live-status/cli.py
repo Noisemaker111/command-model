@@ -49,7 +49,7 @@ def cmd_build_dataset(a):
 
 def cmd_benchmark_base_models(a):
     from benchmarks.baseline import run
-    _print(run(models=a.models, split=a.split, limit=a.limit, judge=not a.no_judge, prompt=a.prompt, data=a.data))
+    _print(run(models=a.models, split=a.split, limit=a.limit, judge=not a.no_judge, prompt=a.prompt, data=a.data, grader=a.grader))
 
 
 def cmd_train(a):
@@ -117,8 +117,9 @@ def main(argv=None):
     s.add_argument("--split", default="test")
     s.add_argument("--data", default="v1")
     s.add_argument("--limit", type=int, default=0)
-    s.add_argument("--prompt", choices=["instruct", "plain"], default="instruct")
+    s.add_argument("--prompt", choices=["instruct", "plain", "structured"], default="instruct")
     s.add_argument("--no-judge", action="store_true")
+    s.add_argument("--grader", choices=["none", "jev", "opus", "both"], default="jev")
     s.set_defaults(fn=cmd_benchmark_base_models)
     for name in PASSTHROUGH:
         sub.add_parser(name, help=f"see `{name} --help`")

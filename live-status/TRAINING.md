@@ -18,6 +18,8 @@ Status: <gold sentence><eos>
 
 Loss covers only the status and EOS. `--prompt instruct` prepends the long instruction
 (serve it with the `:long` backend suffix); `mixed` uses it on 30% of rows.
+`--prompt structured` adds a deterministic action parse and bounded raw command; serve that
+adapter with the `:structured-plain` backend suffix.
 
 ## Mechanics
 

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
+from collections import Counter
 import sys
 import threading
 import time
@@ -151,9 +153,15 @@ def run_eval(backend, rows: list[dict], name: str, judge: bool = True, cpu_probe
         cpu_procs = []
     if hasattr(backend, "warm"):
         backend.warm()
+    d = home() / "evaluation"
+    generated_path = d / "outputs" / f"{name}.generated.jsonl"
+    cached = {r["id"]: r for r in read_jsonl(generated_path)} if generated_path.exists() else {}
     outputs = []
     t_start = time.time()
     for r in rows:
+        if r["id"] in cached:
+            outputs.append(cached[r["id"]])
+            continue
         try:
             out, m = backend.generate(r["command"])
         except Exception as exc:
@@ -162,6 +170,8 @@ def run_eval(backend, rows: list[dict], name: str, judge: bool = True, cpu_probe
         v = check(out, r["command"], salient_targets(st.to_dict()))
         outputs.append({**{k: r[k] for k in ("id", "command", "status", "shell", "tags", "complexity")},
                         "output": out, "metrics": m, "validators": v})
+        if len(outputs) % 25 == 0:
+            write_jsonl(generated_path, outputs)
     elapsed = time.time() - t_start
     cpu = None
     try:
@@ -169,20 +179,37 @@ def run_eval(backend, rows: list[dict], name: str, judge: bool = True, cpu_probe
     except Exception:
         pass
     mem = memory_snapshot(backend)
-    judge = judge and grader in ("opus", "both")
-    if judge:
+    # Preserve the complete local output if a remote grader fails.
+    write_jsonl(generated_path, outputs)
+    grading_requested = judge
+    opus_judged = grading_requested and grader in ("opus", "both")
+    if opus_judged:
         cache = judge_outputs(outputs)
         for o in outputs:
             o["judge"] = cache.get(o["jkey"])
-    if grader in ("jev", "both"):
+    if grading_requested and grader in ("jev", "both"):
         jev_grade_outputs(outputs)
-    rep = summarize(outputs, judge)
+    rep = summarize(outputs, opus_judged)
     rep.update({"name": name, "backend": backend.name, "n": len(outputs), "elapsed_s": round(elapsed, 1),
                 "cpu_percent_avg": cpu, "memory": mem, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")})
-    d = home() / "evaluation"
     write_jsonl(d / "outputs" / f"{name}.jsonl", outputs)
     save_json(d / f"{name}.json", rep)
+    generated_path.unlink(missing_ok=True)
     return rep
+
+
+_OVERLAP_STOP = {"a", "an", "and", "the", "then", "to", "for", "of", "in", "on", "with", "from", "into", "its"}
+
+
+def reference_overlap(output: str, reference: str) -> dict:
+    """Whole-set lexical regression signal; this is not a semantic accuracy score."""
+    tokens = lambda text: [x for x in re.findall(r"[a-z0-9_./\\:+-]+", text.lower()) if x not in _OVERLAP_STOP]
+    got, want = Counter(tokens(output)), Counter(tokens(reference))
+    common = sum((got & want).values())
+    precision = common / max(1, sum(got.values()))
+    recall = common / max(1, sum(want.values()))
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {"precision": precision, "recall": recall, "f1": f1}
 
 
 def summarize(outputs: list[dict], judged: bool) -> dict:
@@ -191,7 +218,15 @@ def summarize(outputs: list[dict], judged: bool) -> dict:
     tps = [o["metrics"]["tokens_per_s"] for o in outputs if o["metrics"].get("tokens_per_s")]
     V = lambda k: round(100 * sum(1 for o in outputs if o["validators"].get(k)) / n, 1)  # noqa: E731
     recalls = [o["validators"]["target_recall"] for o in outputs if "target_recall" in o["validators"]]
+    overlaps = [reference_overlap(o["output"], o["status"]) for o in outputs]
     rep = {
+        "reference_overlap": {
+            "coverage_pct": round(100 * len(overlaps) / n, 1),
+            "precision_avg": round(statistics.mean(x["precision"] for x in overlaps), 3),
+            "recall_avg": round(statistics.mean(x["recall"] for x in overlaps), 3),
+            "f1_avg": round(statistics.mean(x["f1"] for x in overlaps), 3),
+            "meaning": "whole-set lexical regression signal, not semantic accuracy",
+        },
         "validators": {"pass_pct": V("pass"), "style_pct": V("style_ok"), "one_sentence_pct": V("one_sentence"),
                        "length_pct": V("length_ok"), "live_tense_pct": V("live_tense"), "no_secret_pct": V("no_secret"),
                        "no_boilerplate_pct": V("no_boilerplate"), "no_shell_noise_pct": V("no_shell_noise"),
@@ -313,7 +348,7 @@ def main(argv=None):
         from inference.backends import from_spec
         rep = run_eval(from_spec(a.backend), load_split(a.data, a.split, a.limit), a.name,
                        judge=a.grader != "none", grader=a.grader)
-    print(json.dumps({k: rep.get(k) for k in ("name", "n", "validators", "latency_s", "tokens_per_s_median", "memory", "jev", "judge")}, indent=2))
+    print(json.dumps({k: rep.get(k) for k in ("name", "n", "validators", "reference_overlap", "latency_s", "tokens_per_s_median", "memory", "jev", "judge")}, indent=2))
     if a.promote:
         print(json.dumps(promote(rep), indent=2))
 
