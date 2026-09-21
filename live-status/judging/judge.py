@@ -13,15 +13,20 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from common import append_jsonl, home, read_jsonl, sha
 from evaluation.validators import check
 from inference.heuristic import describe
-from labeling.llm import DEFAULT_MODEL, QuotaExhausted, chat, parse_results
+from labeling.llm import DEFAULT_MODEL, QuotaExhausted, chat, model_code, parse_results
 from labeling.prompts import JUDGE_SYSTEM, JUDGE_VERSION
 from redaction.redact import find_secrets
 
 BATCH_CHARS = 30000
 
 
-def judged_path():
-    return home() / "labels" / "judged.jsonl"
+def judged_path(name: str = "judged.jsonl"):
+    return home() / "labels" / name
+
+
+def cand_hash(cands: dict) -> str:
+    """Hash candidate *text*, so re-keying candidates never re-judges settled rows."""
+    return sha(json.dumps(sorted(v.strip() for v in cands.values() if isinstance(v, str))))
 
 
 def compact_structure(st: dict) -> str:
@@ -30,13 +35,13 @@ def compact_structure(st: dict) -> str:
     return "; ".join(acts + extra)
 
 
-def candidate_sets() -> dict[str, dict]:
-    """Latest candidates per command id from all teacher runs."""
+def candidate_sets(models: set[str] | None = None) -> dict[str, dict]:
+    """Latest candidates per command id from all teacher runs, keyed <model><t|r><a|b>."""
     sets: dict[str, dict] = {}
     for row in read_jsonl(home() / "labels" / "teacher.jsonl"):
-        if row["missing"]:
+        if row["missing"] or (models and row["teacher_model"] not in models):
             continue
-        tag = "r" if "regen" in row["prompt_version"] else "t"
+        tag = model_code(row["teacher_model"]) + ("r" if "regen" in row["prompt_version"] else "t")
         cur = sets.setdefault(row["id"], {})
         for k, v in row["candidates"].items():
             cur[f"{tag}{k}"] = v
@@ -69,15 +74,16 @@ def run_batch(items: list[dict], model: str) -> list[dict]:
 
 def judge_all(limit: int = 0, batch: int = 8, model: str = DEFAULT_MODEL, workers: int = 3,
               only_ids: set[str] | None = None, extra: dict[str, dict] | None = None,
-              teacher: bool = True) -> dict:
+              teacher: bool = True, teacher_models: set[str] | None = None, out_name: str = "judged.jsonl") -> dict:
     """extra: additional candidates per id (e.g. {"m": student output}); teacher=False judges only those."""
     cmds = {r["id"]: r for r in read_jsonl(home() / "commands_redacted.jsonl")}
-    sets = candidate_sets() if teacher else {}
+    sets = candidate_sets(teacher_models) if teacher else {}
     for cid, more in (extra or {}).items():
         sets[cid] = {**sets.get(cid, {}), **more}
+    out_path = judged_path(out_name)
     done = set()
-    if judged_path().exists():
-        done = {(x["id"], x["cand_hash"]) for x in read_jsonl(judged_path()) if not x.get("missing")}
+    if out_path.exists():
+        done = {(x["id"], cand_hash(x["candidates"])) for x in read_jsonl(out_path) if not x.get("missing")}
     items = []
     for cid, cands in sets.items():
         if only_ids is not None and cid not in only_ids:
@@ -88,7 +94,7 @@ def judge_all(limit: int = 0, batch: int = 8, model: str = DEFAULT_MODEL, worker
         h_text, h_conf = describe(r["command_redacted"], r["shell"])
         if h_conf >= 0.7 and teacher:
             cands = {**cands, "h": h_text}
-        ch = sha(json.dumps(cands, sort_keys=True))
+        ch = cand_hash(cands)
         if (cid, ch) in done:
             continue
         item = {"id": cid, "shell": r["shell"], "command": r["command_redacted"],
@@ -126,17 +132,17 @@ def judge_all(limit: int = 0, batch: int = 8, model: str = DEFAULT_MODEL, worker
                 print(f"  batch failed: {str(exc)[:200]}", flush=True)
                 continue
             with lock:
-                append_jsonl(judged_path(), out)
+                append_jsonl(out_path, out)
                 written += len(out)
             if i % 10 == 0 or i == len(batches):
                 print(f"  {i}/{len(batches)} batches, {written} judged", flush=True)
     return {"items": len(items), "written": written, "failed_batches": failed, "stopped_on_quota": stopped}
 
 
-def latest_judgements() -> dict[str, dict]:
+def latest_judgements(name: str = "judged.jsonl") -> dict[str, dict]:
     out: dict[str, dict] = {}
-    if judged_path().exists():
-        for x in read_jsonl(judged_path()):
+    if judged_path(name).exists():
+        for x in read_jsonl(judged_path(name)):
             if not x.get("missing"):
                 out[x["id"]] = x
     return out

@@ -14,13 +14,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from common import append_jsonl, home, read_jsonl
-from labeling.llm import DEFAULT_MODEL, QuotaExhausted, chat, parse_results
+from labeling.llm import DEFAULT_MODEL, QuotaExhausted, chat, model_code, parse_results
 from labeling.prompts import TEACHER_REGEN_NOTE, TEACHER_SYSTEM, TEACHER_VERSION
 from redaction.redact import find_secrets
 
 MAX_LABEL_CHARS = 6000
 BATCH_CHARS = 30000
 TEMPERATURE = 0.4
+
+
+def version_of(model: str, regen: bool) -> str:
+    return TEACHER_VERSION + ("+regen" if regen else "") + "@" + model
 
 
 def teacher_path() -> Path:
@@ -70,8 +74,26 @@ def _batches(items: list[dict], size: int) -> list[list[dict]]:
     return batches
 
 
+def salient_names(st: dict) -> list[str]:
+    """Concrete targets the parser found: file basenames, process names, git/package subcommands."""
+    out = []
+    for a in st.get("actions", []):
+        out += [t for t in a.get("targets", []) if t and not t.startswith(("<", "$", "-")) and len(t) < 60]
+        if a.get("sub"):
+            out.append(a["sub"])
+    seen = []
+    for n in out:
+        if n not in seen:
+            seen.append(n)
+    return seen[:10]
+
+
 def _item(r: dict, feedback: dict | None = None) -> dict:
-    it = {"id": r["id"], "shell": r["shell"], "command": r["command_redacted"]}
+    from judging.judge import compact_structure
+    from parsers.shell import analyze
+    st = r.get("structure") or analyze(r["command_redacted"], r.get("shell")).to_dict()
+    it = {"id": r["id"], "shell": r["shell"], "command": r["command_redacted"],
+          "structure": compact_structure(st), "names": salient_names(st)}
     if feedback:
         it["previous_attempt"] = feedback.get("output")
         it["judge_feedback"] = feedback.get("notes")
@@ -90,7 +112,7 @@ def run_batch(batch: list[dict], model: str, regen: bool) -> list[dict]:
     for it in batch:
         res = results.get(it["id"])
         cands = {k: res[k].strip() for k in ("a", "b") if res and isinstance(res.get(k), str) and res[k].strip()}
-        out.append({"id": it["id"], "teacher_model": model, "prompt_version": TEACHER_VERSION + ("+regen" if regen else ""),
+        out.append({"id": it["id"], "teacher_model": model, "prompt_version": version_of(model, regen),
                     "params": {"temperature": TEMPERATURE, "batch_size": len(batch)}, "candidates": cands,
                     "missing": not cands, "ts": now, "latency_s": round(time.time() - t0, 1),
                     "usage": usage if it is batch[0] else None})
@@ -106,7 +128,7 @@ def generate(limit: int = 0, batch: int = 20, model: str = DEFAULT_MODEL, worker
     else:
         todo = select(rows, limit)
     regen = bool(feedback)
-    version = TEACHER_VERSION + ("+regen" if regen else "")
+    version = version_of(model, regen)
     done = set()
     if teacher_path().exists():
         done = {x["id"] for x in read_jsonl(teacher_path()) if x["prompt_version"] == version and not x["missing"]}

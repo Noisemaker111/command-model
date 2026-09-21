@@ -230,9 +230,68 @@ def fit_rule(rows: list[dict]) -> dict:
     return best
 
 
+def choose(items: list[tuple[str, str, dict[str, str]]]) -> dict[str, dict]:
+    """Pick the best candidate per command. Choice returns one of the option keys, so the
+    winning *text* comes back too: Jev emits text only by selecting an input.
+
+    items: (key, command, {candidate_key: sentence}) -> {key: {"choice", "text", "probabilities", "confidence"}}
+    """
+    reqs = []
+    for k, cmd, cands in items:
+        if len(cands) < 2:
+            continue
+        reqs.append({"id": k, "state": {"command": cmd, "candidates": cands},
+                     "questions": {"best": {"type": "choice",
+                                            "instructions": "Which candidate is the best live status sentence for this command: accurate, complete, specific about names, and concise?",
+                                            "criteria": {ck: text for ck, text in cands.items()}}}})
+    res = evaluate(reqs)
+    out = {}
+    for k, cmd, cands in items:
+        r = res.get(k)
+        if not r or "error" in r:
+            out[k] = {"error": (r or {}).get("error", "missing"), "choice": None,
+                      "text": next(iter(cands.values())) if len(cands) == 1 else None}
+            continue
+        a = r["answers"]["best"]
+        out[k] = {"choice": a["choice"], "text": cands.get(a["choice"]),
+                  "probabilities": a.get("probabilities"), "confidence": (r.get("confidence") or {}).get("best")}
+    return out
+
+
+def calibrate_choice(limit: int) -> dict:
+    """How often Jev's Choice picks the same candidate Opus's judge picked."""
+    cmds = {r["id"]: r for r in read_jsonl(home() / "commands_redacted.jsonl")}
+    from judging.judge import latest_judgements
+    items, truth, scores = [], {}, {}
+    for cid, j in latest_judgements().items():
+        cands = {k: v for k, v in j["candidates"].items() if isinstance(v, str)}
+        if cid not in cmds or len(cands) < 2 or not j.get("best") or j["best"] not in cands:
+            continue
+        items.append((cid, cmds[cid]["command_redacted"], cands))
+        truth[cid] = j["best"]
+        scores[cid] = {k: (j["verdicts"].get(k) or {}).get("score") for k in cands}
+        if limit and len(items) >= limit:
+            break
+    picked = choose(items)
+    ok = [k for k in truth if picked.get(k, {}).get("choice")]
+    agree = sum(1 for k in ok if picked[k]["choice"] == truth[k])
+    # "no worse" = Jev's pick scored at least as high as Opus's pick under Opus's own scores
+    no_worse = sum(1 for k in ok if (scores[k].get(picked[k]["choice"]) or 0) >= (scores[k].get(truth[k]) or 0))
+    conf = [picked[k]["confidence"] for k in ok if picked[k].get("confidence") is not None]
+    hi = [k for k in ok if (picked[k].get("confidence") or 0) >= 0.5]
+    rep = {"items": len(items), "chosen": len(ok), "agreement": round(agree / max(1, len(ok)), 3),
+           "no_worse_by_opus_score": round(no_worse / max(1, len(ok)), 3),
+           "mean_confidence": round(sum(conf) / max(1, len(conf)), 3) if conf else None,
+           "high_confidence_share": round(len(hi) / max(1, len(ok)), 3),
+           "agreement_when_confident": round(sum(1 for k in hi if picked[k]["choice"] == truth[k]) / max(1, len(hi)), 3)}
+    save_json(home() / "evaluation" / "jev_choice_calibration.json", rep)
+    return rep
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("action", choices=["calibrate", "calibrate-eval"])
+    p.add_argument("action", choices=["calibrate", "calibrate-eval", "calibrate-choice"])
     p.add_argument("--limit", type=int, default=400)
     a = p.parse_args()
-    print(json.dumps((calibrate if a.action == "calibrate" else calibrate_eval)(a.limit), indent=2))
+    fn = {"calibrate": calibrate, "calibrate-eval": calibrate_eval, "calibrate-choice": calibrate_choice}[a.action]
+    print(json.dumps(fn(a.limit), indent=2))

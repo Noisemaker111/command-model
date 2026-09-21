@@ -3,7 +3,8 @@
   python live-status/cli.py serve --backend ollama:live-status --port 8765
 
 Order per request: size limits -> redaction -> cache -> [optional heuristic fast path] ->
-model (bounded concurrency, timeout) -> validation -> heuristic fallback.
+model (bounded concurrency, timeout; `--best-of N` samples N candidates and lets Jev pick) ->
+validation -> heuristic fallback.
 Commands are never logged; optional logs hold hashes, timings and the status only.
 For remote use set LIVE_STATUS_API_TOKEN and pass --tls-cert/--tls-key; binding a
 non-loopback address without a token is refused.
@@ -38,7 +39,8 @@ MODEL_INPUT_CHARS = 6000
 
 class Service:
     def __init__(self, backend=None, *, cache_size: int = 2048, log_path: Path | None = None,
-                 max_concurrency: int = 4, queue_wait: float = 2.0, fast_path: bool = False):
+                 max_concurrency: int = 4, queue_wait: float = 2.0, fast_path: bool = False,
+                 best_of: int = 1):
         self.backend = backend
         self.cache: collections.OrderedDict[str, str] = collections.OrderedDict()
         self.cache_size = cache_size
@@ -46,6 +48,7 @@ class Service:
         self.slots = threading.BoundedSemaphore(max_concurrency)
         self.queue_wait = queue_wait
         self.fast_path = fast_path
+        self.best_of = best_of
         self.log_path = log_path
 
     def _log(self, row: dict) -> None:
@@ -71,6 +74,9 @@ class Service:
             try:
                 model_in = red if len(red) <= MODEL_INPUT_CHARS else red[:MODEL_INPUT_CHARS] + " …"
                 status, _ = self.backend.generate(model_in)
+                if self.best_of > 1:
+                    picked, source = self._best_of(model_in, status)
+                    status = picked or status
             except Exception as exc:  # timeouts, backend down
                 source = f"fallback:{type(exc).__name__}"
             finally:
@@ -84,6 +90,29 @@ class Service:
         if status is None:
             return self._done(h_text, source, key, t0, cache=False)
         return self._done(status, source, key, t0)
+
+    def _best_of(self, command: str, greedy: str) -> tuple[str | None, str]:
+        """Sample extra candidates and let Jev pick; falls back to the greedy answer."""
+        from judging.jev import combined, grade
+        pool = [greedy] if greedy else []
+        for i in range(self.best_of - 1):
+            try:
+                text, _ = self.backend.generate(command, temperature=0.8, seed=1000 + i)
+            except Exception:
+                break
+            if text and text not in pool:
+                pool.append(text)
+        pool = [c for c in pool if check(c, command)["pass"]]
+        if len(pool) < 2:
+            return (pool[0] if pool else None), "model"
+        try:
+            graded = grade([(str(i), command, c) for i, c in enumerate(pool)])
+        except Exception:
+            return greedy, "model:best-of-failed"
+        scored = [(combined(g), pool[int(k)]) for k, g in graded.items() if "error" not in g]
+        if not scored:
+            return greedy, "model:best-of-failed"
+        return max(scored)[1], "model:best-of"
 
     def _done(self, status: str, source: str, key: str, t0: float, cache: bool = True) -> dict:
         if cache and self.cache_size:
@@ -176,6 +205,8 @@ def main(argv=None):
     p.add_argument("--rate-per-minute", type=int, default=0, help="0 disables (default for localhost)")
     p.add_argument("--cache-size", type=int, default=2048)
     p.add_argument("--log", type=Path, help="JSONL log of hashes/timings/statuses (off by default)")
+    p.add_argument("--best-of", type=int, default=1,
+                   help="sample N candidates and let Jev select (measured +8 points, ~5x latency)")
     p.add_argument("--fast-path", action="store_true", help="answer high-confidence heuristic matches without the model (judge-rated less specific; off by default)")
     p.add_argument("--tls-cert"); p.add_argument("--tls-key")
     a = p.parse_args(argv)
@@ -190,7 +221,7 @@ def main(argv=None):
         if hasattr(backend, "warm"):
             backend.warm()
     service = Service(backend, cache_size=a.cache_size, log_path=a.log, max_concurrency=a.concurrency,
-                      fast_path=a.fast_path)
+                      fast_path=a.fast_path, best_of=a.best_of)
     httpd = ThreadingHTTPServer((a.host, a.port), make_handler(service, token, RateLimiter(a.rate_per_minute)))
     httpd.daemon_threads = True
     scheme = "http"

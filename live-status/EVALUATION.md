@@ -1,7 +1,7 @@
 # Evaluation
 
 ```powershell
-python live-status/cli.py evaluate --backend ollama:<model>[:plain|:long|:instruct][:cpu] --name <run> [--grader jev|opus|both|none] [--promote]
+python live-status/cli.py evaluate --backend ollama:<model>[:plain|:long|:instruct|:structured|:structured-plain][:cpu] --name <run> [--grader jev|opus|both|none] [--promote]
 python live-status/cli.py evaluate --regrade --name <run> --grader opus      # re-grade saved outputs
 ```
 
@@ -20,19 +20,24 @@ recall for simple read/process/delete commands.
 | Grader | What it sees | Cost / speed | Agreement with Opus 5 |
 | --- | --- | --- | --- |
 | `opus` | command, reference, output; returns correct, score, missing/hallucinated actions, secret leak, injection followed | ~20 outputs per call, ~60 s | — |
+| `opus` on Haiku's labels | same | same | Haiku labels reach 78.9% of the Opus gold standard (DATASET.md) |
 | `jev` (default) | command, reference, output; answers `same_actions`, `invented`, `quality` | 700 outputs in ~3 s, ~$0.02 | AUC 0.92, 86.4% agreement at score ≥ 0.45 (700 Opus-graded outputs) |
 
 A jev-accepted output passes validators and has
 `same × (1 − invented) × quality/4 ≥ 0.45`. Calibration lives in
 `evaluation/jev_eval_calibration.json`; rerun it with `python live-status/judging/jev.py calibrate-eval`.
-Grading a status without a reference is much weaker (AUC 0.68 on 3,000 teacher candidates), so
-jev only *ranks* unlabeled outputs during failure mining and Opus writes the labels.
+Grading a status without a reference is much weaker (AUC 0.68 on 3,000 teacher candidates), and
+asking jev to *choose* between near-equal candidates matches the judge only 52% of the time
+(1,200 commands, `judging/jev.py calibrate-choice`). So jev ranks unlabeled outputs during
+failure mining, and a judge model still writes the labels.
 
 jev is stricter than Opus on good outputs: Opus's alternate teacher candidates on 200 test
 commands pass 86% of Opus evaluations and 72% of jev evaluations. Compare runs only within
 one grader.
 
 Both graders cache verdicts by (command, output), so re-evaluating an unchanged output is free.
+Generation checkpoints every 25 rows to `evaluation/outputs/<run>.generated.jsonl`. A retry
+resumes from that checkpoint, and a completed run removes it after saving the final output.
 
 The `no_secret` validator also fails outputs that echo a redaction placeholder
 (`<TOKEN>`, `<SECRET>`). Two of the round-1 runs did this once each, which blocks promotion;
@@ -43,6 +48,17 @@ the service replaces such outputs with the heuristic fallback.
 A run is promoted into `evaluation/registry.json` only if nothing leaks, its accepted rate is at
 least the current best, hallucination does not rise by more than a point, and it was graded
 by the same grader as the current best.
+
+## Service under load
+
+```powershell
+python live-status/benchmarks/service_load.py --url http://127.0.0.1:8765 --clients 8 --requests 240
+```
+
+Qwen3-0.6B q4_K_M behind the service, 8 concurrent clients, cache bypassed: 10.0 requests/s,
+p50 0.80 s, p99 1.00 s, no failures, 239/240 answered by the model and one by the fallback.
+Single-client latency is 0.10 s p50; the gap is queueing, since one Ollama runner serves the
+default concurrency of 4.
 
 ## Reports
 

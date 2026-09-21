@@ -9,6 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
+from labeling.llm import DEFAULT_MODEL as DEFAULT_TEACHER  # noqa: E402
+
+
 def _print(obj) -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=2)[:6000])
 
@@ -46,7 +49,7 @@ def cmd_build_dataset(a):
 
 def cmd_benchmark_base_models(a):
     from benchmarks.baseline import run
-    _print(run(models=a.models, split=a.split, limit=a.limit, judge=not a.no_judge, prompt=a.prompt, data=a.data))
+    _print(run(models=a.models, split=a.split, limit=a.limit, judge=not a.no_judge, prompt=a.prompt, data=a.data, grader=a.grader))
 
 
 def cmd_train(a):
@@ -69,6 +72,11 @@ def cmd_serve(a):
     serve_main(a.rest)
 
 
+def cmd_self_label(a):
+    from labeling.self_label import main as self_main
+    self_main(a.rest)
+
+
 def cmd_mine_failures(a):
     from evaluation.active import main as active_main
     active_main(a.rest)
@@ -80,7 +88,7 @@ def cmd_run_full_pipeline(a):
 
 
 PASSTHROUGH = {"train": cmd_train, "evaluate": cmd_evaluate, "export_gguf": cmd_export_gguf,
-               "serve": cmd_serve, "mine_failures": cmd_mine_failures}
+               "serve": cmd_serve, "mine_failures": cmd_mine_failures, "self_label": cmd_self_label}
 
 
 def main(argv=None):
@@ -99,7 +107,7 @@ def main(argv=None):
         s.add_argument("--limit", type=int, default=0)
         s.add_argument("--batch", type=int, default=20 if name == "generate_labels" else 8)
         s.add_argument("--workers", type=int, default=3, help="parallel Opus requests; >4 trips the subscription rate limit")
-        s.add_argument("--model", default="claude-opus-5")
+        s.add_argument("--model", default=DEFAULT_TEACHER, help="labeling model (default: Haiku)")
         if name == "generate_labels":
             s.add_argument("--ids", help="file of command ids to label (e.g. mined failures)")
         s.set_defaults(fn=fn)
@@ -109,8 +117,9 @@ def main(argv=None):
     s.add_argument("--split", default="test")
     s.add_argument("--data", default="v1")
     s.add_argument("--limit", type=int, default=0)
-    s.add_argument("--prompt", choices=["instruct", "plain"], default="instruct")
+    s.add_argument("--prompt", choices=["instruct", "plain", "structured"], default="instruct")
     s.add_argument("--no-judge", action="store_true")
+    s.add_argument("--grader", choices=["none", "jev", "opus", "both"], default="jev")
     s.set_defaults(fn=cmd_benchmark_base_models)
     for name in PASSTHROUGH:
         sub.add_parser(name, help=f"see `{name} --help`")

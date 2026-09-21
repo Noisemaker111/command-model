@@ -91,9 +91,25 @@ def _split_of(family: str, seed: int) -> str:
     return "test" if x < 0.1 else "validation" if x < 0.2 else "train"
 
 
+def gold_lock_path():
+    return home() / "datasets" / "gold_lock.json"
+
+
+def load_gold_lock() -> dict:
+    import json
+    path = gold_lock_path()
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
 def build(seed: int = 20260916, version: str = "v1", freeze: bool = True) -> dict:
     cmds = {r["id"]: r for r in read_jsonl(home() / "commands_redacted.jsonl")}
     judged = latest_judgements()
+    # Held-out labels are frozen with the judgement that produced them, so re-judging the
+    # corpus with another model cannot silently move the benchmark's target.
+    lock = load_gold_lock()
+    for cid, locked in lock.items():
+        if cid in judged:
+            judged[cid] = locked
     buckets = collections.defaultdict(list)
     for cid, j in judged.items():
         r = cmds.get(cid)
@@ -108,14 +124,31 @@ def build(seed: int = 20260916, version: str = "v1", freeze: bool = True) -> dic
                "weight": round(min(4.0, 1 + math.log2(r["count"])), 2), "existing_model_text": r.get("existing_model_text")}
         buckets[verdict].append(row)
 
+    # Self-labels (student wrote, Jev selected) join training only: they never define held-out
+    # truth, and any whose family is frozen into test/validation is dropped.
+    from labeling.self_label import load_self_labels
+    self_rows = []
+    for cid, sl in load_self_labels().items():
+        r = cmds.get(cid)
+        if not r or cid in judged:
+            continue
+        self_rows.append({"id": cid, "command": r["command_redacted"], "status": sl["status"], "shell": r["shell"],
+                          "score": None, "reason": "self", "uncertain": False, "candidates": {}, "best": "self",
+                          "notes": f"{sl['source']} score={sl['score']}", "tags": r["tags"], "complexity": r["complexity"],
+                          "length": r["length"], "count": r["count"], "sources": r["sources"],
+                          "action_types": r["structure"]["action_types"], "label_source": "self",
+                          "weight": round(min(4.0, 1 + math.log2(r["count"])), 2), "existing_model_text": r.get("existing_model_text")})
+
     accepted = buckets["accepted"]
-    fam = families(accepted)
+    for r in accepted:
+        r.setdefault("label_source", "judged")
+    fam = families(accepted + self_rows)
     frozen_path = home() / "datasets" / "frozen_families.json"
     frozen = {}
     if frozen_path.exists():
         import json
         frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
-    for r in accepted:
+    for r in accepted + self_rows:
         r["family"] = fam[r["id"]]
     # a family inherits a frozen split if any member was frozen there before
     fam_split = {}
@@ -152,6 +185,9 @@ def build(seed: int = 20260916, version: str = "v1", freeze: bool = True) -> dic
     splits = collections.defaultdict(list)
     for r in accepted:
         splits[fam_split[r["family"]]].append(r)
+    held_families = {f for f, name in fam_split.items() if name in ("test", "validation")}
+    dropped_self = sum(1 for r in self_rows if r["family"] in held_families)
+    splits["train"] += [r for r in self_rows if r["family"] not in held_families]
     out_dir = home() / "datasets" / version
     counts = {}
     for name in ("train", "validation", "test"):
@@ -165,9 +201,14 @@ def build(seed: int = 20260916, version: str = "v1", freeze: bool = True) -> dic
             new_frozen.setdefault(r["id"], name)
     if freeze:
         save_json(frozen_path, new_frozen)
+        lock.update({r["id"]: judged[r["id"]] for name in ("test", "validation") for r in splits[name]
+                     if r["id"] in judged and r["id"] not in lock})
+        save_json(gold_lock_path(), lock)
 
     leak = _leak_check(splits)
     report = {"version": version, "seed": seed, "counts": counts, "families": len(set(fam.values())),
+              "self_labels": {"available": len(self_rows), "used_in_train": len(self_rows) - dropped_self,
+                              "dropped_held_out_family": dropped_self},
               "cross_split_template_collisions": leak, "distributions": {n: distribution(splits[n]) for n in ("train", "validation", "test")},
               "rejected_reasons": dict(collections.Counter(r["reason"] for r in buckets["rejected"])),
               "review_reasons": dict(collections.Counter(r["reason"] for r in buckets["manual_review"]))}

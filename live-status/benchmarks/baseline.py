@@ -26,14 +26,14 @@ def unload(backend: OllamaBackend) -> None:
 
 
 def run(models: list[str], split: str = "test", limit: int = 0, judge: bool = True, prompt: str = "instruct",
-        data: str = "v1") -> dict:
+        data: str = "v1", grader: str = "jev") -> dict:
     rows = load_split(data, split, limit)
     table = []
     for m in models:
-        backend = OllamaBackend(m, mode="plain" if prompt == "plain" else "instruct", timeout=60)
+        backend = OllamaBackend(m, mode="plain" if prompt == "plain" else prompt, timeout=60)
         name = f"baseline-{data}-{m.replace(':', '-').replace('/', '_')}-{prompt}-{split}{limit or ''}"
         print(f"== {m} ({len(rows)} rows)", flush=True)
-        rep = run_eval(backend, rows, name, judge=judge)
+        rep = run_eval(backend, rows, name, judge=judge, grader=grader)
         unload(backend)
         table.append({"model": m, "prompt": prompt, "n": rep["n"], "judge": rep.get("judge"), "validators": rep["validators"],
                       "latency_s": rep["latency_s"], "tokens_per_s": rep["tokens_per_s_median"], "memory": rep["memory"],

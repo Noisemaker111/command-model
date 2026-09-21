@@ -9,7 +9,7 @@ import re
 import time
 import urllib.request
 
-from labeling.prompts import EXAMPLES, STUDENT_INSTRUCTION, fit_command, student_prompt
+from labeling.prompts import EXAMPLES, STUDENT_INSTRUCTION, fit_command, structured_student_input, student_prompt
 
 MAX_NEW_TOKENS = 48
 
@@ -27,13 +27,15 @@ def clean(text: str) -> str:
     return t[:1].upper() + t[1:]
 
 
-def _few_shot_messages(command: str) -> list[dict]:
+def _few_shot_messages(command: str, *, structured: bool = False) -> list[dict]:
     msgs = [{"role": "system", "content": STUDENT_INSTRUCTION}]
     for block in EXAMPLES.split("\n\n")[:4]:
         cmd, status = block.split("\nStatus: ")
-        msgs.append({"role": "user", "content": cmd.removeprefix("Command: ")})
+        example = cmd.removeprefix("Command: ")
+        msgs.append({"role": "user", "content": structured_student_input(example) if structured else example})
         msgs.append({"role": "assistant", "content": status})
-    msgs.append({"role": "user", "content": fit_command(command)})
+    content = structured_student_input(command) if structured else fit_command(command)
+    msgs.append({"role": "user", "content": content})
     return msgs
 
 
@@ -45,8 +47,8 @@ def _post(url: str, body: dict, timeout: float) -> dict:
 
 
 class OllamaBackend:
-    """`plain`: fine-tuned completion format; `long`: same with the instruction prepended;
-    `instruct`: chat with few-shot examples (untuned models)."""
+    """Plain is fine-tuned completion format; long prepends the instruction.
+    Structured-plain completes over the deterministic parse; instruct uses few-shot chat."""
 
     def __init__(self, model: str, url: str = "http://127.0.0.1:11434", mode: str = "plain",
                  timeout: float = 20.0, keep_alive: str = "30m", cpu: bool = False, threads: int | None = None):
@@ -54,23 +56,28 @@ class OllamaBackend:
         self.cpu, self.threads = cpu, threads
         self.name = f"ollama:{model}:{mode}" + (":cpu" if cpu else "")
 
-    def _options(self) -> dict:
-        opts = {"temperature": 0, "num_predict": MAX_NEW_TOKENS, "stop": ["\n"], "num_ctx": 2048}
+    def _options(self, temperature: float | None = None, seed: int | None = None) -> dict:
+        opts = {"temperature": 0 if temperature is None else temperature,
+                "num_predict": MAX_NEW_TOKENS, "stop": ["\n"], "num_ctx": 2048}
+        if seed is not None:
+            opts["seed"] = seed
         if self.cpu:
             opts["num_gpu"] = 0
         if self.threads:
             opts["num_thread"] = self.threads
         return opts
 
-    def generate(self, command: str) -> tuple[str, dict]:
-        opts = self._options()
+    def generate(self, command: str, temperature: float | None = None, seed: int | None = None) -> tuple[str, dict]:
+        opts = self._options(temperature, seed)
         t0 = time.perf_counter()
-        if self.mode in ("plain", "long"):
-            out = _post(f"{self.url}/api/generate", {"model": self.model, "prompt": student_prompt(command, instruct=self.mode == "long"),
+        if self.mode in ("plain", "long", "structured-plain"):
+            out = _post(f"{self.url}/api/generate", {"model": self.model,
+                                                    "prompt": student_prompt(command, instruct=self.mode == "long",
+                                                                             structured=self.mode == "structured-plain"),
                                                     "raw": True, "stream": False, "options": opts, "keep_alive": self.keep_alive}, self.timeout)
             text = out.get("response", "")
         else:
-            out = _post(f"{self.url}/api/chat", {"model": self.model, "messages": _few_shot_messages(command), "stream": False,
+            out = _post(f"{self.url}/api/chat", {"model": self.model, "messages": _few_shot_messages(command, structured=self.mode == "structured"), "stream": False,
                                                 "think": False, "options": opts, "keep_alive": self.keep_alive}, self.timeout)
             text = (out.get("message") or {}).get("content", "")
         wall = time.perf_counter() - t0
@@ -102,7 +109,8 @@ class LlamaServerBackend:
 class HFBackend:
     """Transformers checkpoint (optionally with a LoRA adapter) for pre-export evaluation."""
 
-    def __init__(self, base: str, adapter: str | None = None, instruct: bool = False, device: str = "cuda", max_len: int = 1024):
+    def __init__(self, base: str, adapter: str | None = None, instruct: bool = False,
+                 structured: bool = False, device: str = "cuda", max_len: int = 1024):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         self.torch = torch
@@ -113,13 +121,16 @@ class HFBackend:
             from peft import PeftModel
             model = PeftModel.from_pretrained(model, adapter).merge_and_unload()
         self.model = model.eval()
-        self.device, self.instruct, self.max_len = device, instruct, max_len
+        self.device, self.instruct, self.structured, self.max_len = device, instruct, structured, max_len
         self.name = f"hf:{adapter or base}"
 
     def generate(self, command: str) -> tuple[str, dict]:
         torch = self.torch
-        ids = self.tok(student_prompt(command, instruct=self.instruct), return_tensors="pt").input_ids
-        ids = ids[:, -self.max_len:].to(self.device)
+        ids = self.tok(student_prompt(command, instruct=self.instruct, structured=self.structured), return_tensors="pt").input_ids
+        if ids.shape[1] > self.max_len:
+            head = int(self.max_len * 0.7)
+            ids = self.torch.cat((ids[:, :head], ids[:, -(self.max_len - head):]), dim=1)
+        ids = ids.to(self.device)
         t0 = time.perf_counter()
         with torch.no_grad():
             out = self.model.generate(ids, attention_mask=torch.ones_like(ids), max_new_tokens=MAX_NEW_TOKENS, do_sample=False,
@@ -139,19 +150,22 @@ class HFBackend:
 
 
 def from_spec(spec: str):
-    """ollama:<model>[:plain|:long|:instruct][:cpu] | llama-server:<url> | hf:<base>[@<adapter>]"""
+    """ollama:<model>[:mode][:cpu] | llama-server:<url> | hf:<base>[@<adapter>][:structured]"""
     kind, _, rest = spec.partition(":")
     if kind == "ollama":
         mode, cpu = "plain", False
         if rest.endswith(":cpu"):
             rest, cpu = rest[:-4], True
-        for m in ("plain", "instruct", "long"):
+        for m in ("structured-plain", "plain", "instruct", "long", "structured"):
             if rest.endswith(":" + m):
                 rest, mode = rest[: -len(m) - 1], m
         return OllamaBackend(rest, mode=mode, cpu=cpu)
     if kind == "llama-server":
         return LlamaServerBackend(rest or "http://127.0.0.1:8080")
     if kind == "hf":
+        structured = rest.endswith(":structured")
+        if structured:
+            rest = rest[:-len(":structured")]
         base, _, adapter = rest.partition("@")
-        return HFBackend(base, adapter or None)
+        return HFBackend(base, adapter or None, structured=structured)
     raise ValueError(f"unknown backend spec {spec}")
