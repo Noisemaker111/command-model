@@ -57,7 +57,8 @@ class ParserFirstTests(unittest.TestCase):
             )],
         })
         self.assertEqual(
-            status, "Running the codex quest dev installer tests."
+            status,
+            "Running the codex quest dev installer tests with a 90-second timeout."
         )
         self.assertTrue(metrics["fully_mapped"])
 
@@ -73,14 +74,16 @@ class ParserFirstTests(unittest.TestCase):
                 {
                     "ok": True,
                     "errors": [],
-                    "nodes": [command("bun", "test", "installer.test.ts")],
+                    "nodes": [command(
+                        "bun", "test", "--timeout=90000", "installer.test.ts"
+                    )],
                 },
                 cwd=directory,
             )
         self.assertEqual(
             status,
-            "Testing that every install creates a sealed version without "
-            "deleting the old one.",
+            "Running a Bun test with a 90-second timeout to verify that every "
+            "install creates a sealed version without deleting the old one.",
         )
         self.assertIn("context_evidence", metrics["facts"][0])
         self.assertEqual(metrics["context_actions"], 1)

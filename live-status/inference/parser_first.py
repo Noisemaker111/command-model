@@ -168,6 +168,29 @@ def _option_values(args: list[str], options: set[str]) -> list[str]:
     return values
 
 
+def _option_value(args: list[str], option: str) -> str | None:
+    option = option.lower()
+    for index, raw in enumerate(args):
+        value = _clean(raw)
+        lowered = value.lower()
+        if lowered == option and index + 1 < len(args):
+            return _clean(args[index + 1])
+        if lowered.startswith(option + "="):
+            return value.split("=", 1)[1]
+    return None
+
+
+def _milliseconds_phrase(value: str | None) -> str | None:
+    if value is None or not value.isdigit():
+        return None
+    milliseconds = int(value)
+    if milliseconds and milliseconds % 60_000 == 0:
+        return f"{milliseconds // 60_000}-minute"
+    if milliseconds and milliseconds % 1_000 == 0:
+        return f"{milliseconds // 1_000}-second"
+    return f"{milliseconds}-millisecond"
+
+
 def _join_words(values: list[str]) -> str:
     if len(values) == 1:
         return values[0]
@@ -248,7 +271,16 @@ def _context_description(
     )
     intents = [intent for target in targets if (intent := _test_intent(cwd, target))]
     if len(intents) == 1:
-        return intents[0]
+        intent, evidence = intents[0]
+        timeout = _milliseconds_phrase(_option_value(args[1:], "--timeout"))
+        timeout_text = f" with a {timeout} timeout" if timeout else ""
+        if intent.startswith("testing that "):
+            action = f"running a Bun test{timeout_text} to verify that {intent[13:]}"
+        elif intent.startswith("testing protection against "):
+            action = f"running a Bun test{timeout_text} to verify protection against {intent[27:]}"
+        else:
+            action = f"running a Bun test{timeout_text} for {intent.removeprefix('testing ')}"
+        return action, evidence
     return None
 
 
@@ -256,13 +288,15 @@ def _describe_runtime(name: str, elements: list[str]) -> tuple[str, bool]:
     args = [_clean(item) for item in elements[1:]]
     if name in ("bun", "bun.exe"):
         if args and args[0].lower() == "test":
+            timeout = _milliseconds_phrase(_option_value(args[1:], "--timeout"))
+            timeout_text = f" with a {timeout} timeout" if timeout else ""
             targets = _option_values(
                 args[1:], {"--timeout", "--filter", "--preload", "--rerun-each"}
             )
             labels = [label for item in targets if (label := _human_name(item))]
             if labels:
-                return f"running the {_join_words(labels)} tests", True
-            return "running tests with Bun", True
+                return f"running the {_join_words(labels)} tests{timeout_text}", True
+            return f"running tests with Bun{timeout_text}", True
         if len(args) >= 2 and args[0].lower() == "run":
             return f"running {args[1]} with Bun", True
         if args and (label := _human_name(args[0])):

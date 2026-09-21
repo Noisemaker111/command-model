@@ -152,8 +152,9 @@ unmeasured until a held-out set captures command, working directory, and expecte
 
 The context resolver now follows a Bun test target inside the supplied working directory and
 uses a unique declared test name as evidence. For `bun test --timeout 90000
-test/codex-quest-dev-installer.test.ts`, the grounded output is “Testing that every development
-install advances, seals and adds a new cache version without removing the old one.” The runtime
+test/codex-quest-dev-installer.test.ts`, the grounded output is “Running a Bun test with a
+90-second timeout to verify that every development install advances, seals and adds a new cache
+version without removing the old one.” The runtime
 still does not solve Bash, infer opaque tools, or reliably identify the primary intent in long
 orchestration cells. Linguistic improvements are trained outside runtime: an explicitly selected
 LLM reviews simulated mapping combinations, and only human-accepted proposals change the map.
