@@ -21,7 +21,9 @@
    evaluation/evaluate.py ──► validators + jev/Opus grading + latency/memory ──► evaluation/registry.json
    evaluation/active.py   ──► student failures on unlabeled commands ──► teacher/judge ──► prefs.jsonl (DPO)
 
- client ──► api/server.py ──► redact ─► cache ─► model (Ollama) ─► validate ─► heuristic fallback
+ client ──► api/server.py ──► redact ─► cache ─┬► PowerShell AST ─► mapped renderer ─┐
+                                               └► model (Ollama) ───────────────────┤
+                                                        validate ─► heuristic fallback
 ```
 
 ## Boundaries
@@ -37,6 +39,10 @@
 
 ## Why these choices
 
+- **Parser-first PowerShell prototype.** `parser:powershell` keeps one local PowerShell
+  process warm, extracts commands with PowerShell's real AST, and renders only mapped facts.
+  Parse errors and dynamic invocation abstain; unknown executables remain literal. It uses
+  no model or GPU. Coverage and grounding are reported separately from human usefulness.
 - **Heuristic as fallback, not fast path.** The deterministic describer answers in under a millisecond, but its confidence ≥ 0.9 outputs cover only 8.7% of executions and the judge rated just 19% of them ≥ 80 (they are correct but generic: "Reviewing the Git diff." for `git diff --stat`). The service therefore always asks the model and uses the heuristic when the model fails, times out or produces an invalid sentence; `--fast-path` re-enables the shortcut.
 - **Plain completion format.** The student learns `Command:\n…\n\nStatus: <sentence>` with no system prompt, so each request costs only the command's tokens.
 - **Ollama/llama.cpp for serving.** It already runs on this machine, serves GGUF at every quantization level, and keeps models warm. `llama-server` is supported by the same backend interface.

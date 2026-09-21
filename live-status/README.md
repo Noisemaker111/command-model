@@ -17,9 +17,16 @@ Details: [TRAINING.md](TRAINING.md), [EVALUATION.md](EVALUATION.md),
 ## Use it
 
 ```powershell
+python live-status/cli.py serve --backend parser:powershell --port 8765
 python live-status/cli.py serve --backend ollama:live-status-v1-qwen3-06b-lora-q4_k_m --port 8765
 python live-status/api/client.py "git fetch origin && git status -sb"
 ```
+
+`parser:powershell` is the CPU-only prototype. It uses PowerShell's own AST, maps only
+known commands, repeats unknown executable names literally, and abstains on malformed or
+dynamic invocation. It does not load a model or use the GPU. The recent-session result and
+its limitations are recorded in
+[the model sweep](research/2026-09-20-model-sweep.md#parser-first-powershell-prototype).
 
 `--best-of 4` samples several candidates and lets jev pick the best: +8 points of quality for
 ~1 s per request instead of ~0.1 s.

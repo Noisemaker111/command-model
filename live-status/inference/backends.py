@@ -150,8 +150,12 @@ class HFBackend:
 
 
 def from_spec(spec: str):
-    """ollama:<model>[:mode][:cpu] | llama-server:<url> | hf:<base>[@<adapter>][:structured]"""
+    """Create a configured inference or deterministic parser backend."""
     kind, _, rest = spec.partition(":")
+    if kind == "parser" and rest == "powershell":
+        from inference.parser_first import PowerShellAstBackend
+
+        return PowerShellAstBackend()
     if kind == "ollama":
         mode, cpu = "plain", False
         if rest.endswith(":cpu"):
